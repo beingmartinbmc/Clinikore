@@ -1,0 +1,19 @@
+fastapi==0.115.4
+uvicorn[standard]==0.32.0
+sqlmodel==0.0.22
+# SQLModel 0.0.22 is incompatible with SQLAlchemy >= 2.0.40 — the newer
+# relationship-annotation guard rejects SQLModel's `List["X"]` patterns.
+# Pin to a known-good pair.
+SQLAlchemy==2.0.36
+pydantic==2.9.2
+reportlab==4.2.5
+python-multipart==0.0.12
+httpx==0.27.2
+
+# --- Desktop shell ---
+# macOS ships a WebKit backend and Windows ships the Edge/Chromium WebView2
+# runtime, so plain pywebview is enough there. Linux needs an explicit
+# GUI backend — we install the Qt extra only on Linux to avoid pulling
+# PyQt5 on every developer's machine.
+pywebview==5.3.2
+pywebview[qt]==5.3.2 ; sys_platform == "linux"

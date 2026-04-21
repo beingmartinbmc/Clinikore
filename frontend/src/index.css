@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply font-sans text-slate-800 antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium
+      transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 focus:ring-brand-500;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-700 hover:bg-slate-100;
+  }
+  .btn-outline {
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .card {
+    @apply rounded-xl bg-white shadow-card border border-slate-200;
+  }
+  .input,
+  .select,
+  .textarea {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
+      placeholder:text-slate-400 focus:border-brand-500 focus:outline-none
+      focus:ring-2 focus:ring-brand-500/30;
+  }
+  .label {
+    @apply block text-xs font-medium text-slate-600 mb-1;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+}
+
+/* FullCalendar tweaks */
+.fc {
+  font-family: inherit;
+}
+.fc .fc-button {
+  background: #fff !important;
+  color: #334155 !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: none !important;
+}
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+  background: #0d9488 !important;
+  color: #fff !important;
+  border-color: #0d9488 !important;
+}
+.fc .fc-event {
+  border: none;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}

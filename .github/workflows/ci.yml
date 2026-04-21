@@ -1,0 +1,88 @@
+name: CI
+
+# Runs on every push and PR to make sure:
+#   - The Python backend is syntactically valid and importable.
+#   - The React frontend builds cleanly.
+# Anything failing here blocks merge to main.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax check all Python files
+        run: |
+          python -c "
+          import ast, pathlib, sys
+          bad = []
+          for p in list(pathlib.Path('backend').rglob('*.py')) + [pathlib.Path('main.py')]:
+              try:
+                  ast.parse(p.read_text())
+              except SyntaxError as e:
+                  bad.append((p, e))
+          if bad:
+              for p, e in bad: print(f'{p}: {e}')
+              sys.exit(1)
+          print('All Python files parse cleanly.')
+          "
+
+      - name: Import smoke test
+        run: |
+          # Ensure backend.main imports (catches missing deps, SQLModel/pydantic
+          # compatibility issues, bad type hints, etc.)
+          python -c "from backend.main import app; print('FastAPI app:', app.title, app.version)"
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci || npm install
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
