@@ -26,7 +26,10 @@ export const translations: Record<Locale, Dict> = {
     "nav.calendar": "Calendar",
     "nav.procedures": "Procedures",
     "nav.invoices": "Invoices",
+    "nav.consultations": "Consultations",
+    "nav.reports": "Reports",
     "nav.backups": "Backups",
+    "nav.settings": "Settings",
     "nav.help": "Help & tour",
 
     // Common buttons
@@ -50,6 +53,9 @@ export const translations: Record<Locale, Dict> = {
     // Dashboard
     "dashboard.title": "Dashboard",
     "dashboard.subtitle": "Snapshot of today's activity",
+    "dashboard.welcome_doctor": "Welcome, Dr. {name}",
+    "dashboard.welcome_generic": "Welcome back",
+    "dashboard.set_name_cta": "Tell us your name →",
     "dashboard.patients": "Patients",
     "dashboard.today_appts": "Today's appointments",
     "dashboard.pending_invoices": "Pending invoices",
@@ -101,9 +107,18 @@ export const translations: Record<Locale, Dict> = {
     "procedures.subtitle": "Catalog & default pricing",
     "procedures.new": "New procedure",
     "procedures.col.name": "Name",
+    "procedures.col.category": "Category",
     "procedures.col.description": "Description",
     "procedures.col.default_price": "Default price (₹)",
     "procedures.empty": "No procedures defined yet.",
+    "procedures.filter.all": "All categories",
+    "procedures.form.name": "Name",
+    "procedures.form.category": "Category / specialization",
+    "procedures.form.category_placeholder": "e.g. Dental, Gastroenterology",
+    "procedures.form.description": "Description",
+    "procedures.form.price": "Default price (₹)",
+    "procedures.added": "Procedure added",
+    "procedures.confirm_delete": "Delete this procedure?",
 
     // Invoices
     "invoices.title": "Invoices",
@@ -198,6 +213,39 @@ export const translations: Record<Locale, Dict> = {
     "tour.backups.body":
       "Automatic snapshots every few hours, including a full CSV export of every table. Download a zip and drop it on a USB stick for offsite safety. You can never lose your data.",
 
+    // Settings
+    "settings.title": "Settings",
+    "settings.subtitle": "Your profile and clinic details",
+    "settings.section.doctor": "Doctor profile",
+    "settings.section.registration": "Medical Council registration",
+    "settings.section.clinic": "Clinic details",
+    "settings.section.data": "Data & storage",
+    "settings.doctor_name": "Doctor's name",
+    "settings.doctor_name_help": "Printed as \"Dr. <name>\" on every invoice and prescription.",
+    "settings.qualifications": "Qualifications",
+    "settings.qualifications_help": "e.g. MBBS, MD — printed after your name on documents.",
+    "settings.specialization": "Your specialization",
+    "settings.specialization_help": "Used as the default category for new procedures and shown on printouts.",
+    "settings.registration_help":
+      "Under the Indian Medical Council (Professional Conduct) Regulations 2002, clause 1.4.2, every doctor MUST display their State Medical Council / NMC registration number on prescriptions, lab reports, money receipts (invoices) and certificates handed to patients. Fill these in once and we'll print them on every document.",
+    "settings.reg_number": "Registration number",
+    "settings.reg_council": "Issuing council (State Medical Council / NMC)",
+    "settings.reg_preview": "Preview:",
+    "settings.mandatory_banner_title":
+      "Complete your profile to enable invoices & prescriptions",
+    "settings.mandatory_banner_body":
+      "Doctor name, clinic name, and registration number are required on every document you issue to a patient.",
+    "settings.clinic_name": "Clinic / practice name",
+    "settings.clinic_address": "Clinic address",
+    "settings.clinic_phone": "Clinic phone",
+    "settings.clinic_email": "Clinic email",
+    "settings.clinic_gstin": "GSTIN (optional)",
+    "settings.data_location": "Data folder",
+    "settings.data_location_help": "Your patient records, invoices and backups live here. Never deleted when you uninstall — your data is always yours.",
+    "settings.data_safe": "Your data is stored on this laptop and survives restarts, shutdowns, and reinstalls.",
+    "settings.saved": "Settings saved",
+    "settings.save_failed": "Could not save settings",
+
     // Language switcher
     "lang.label": "Language",
   },
@@ -212,7 +260,10 @@ export const translations: Record<Locale, Dict> = {
     "nav.calendar": "कैलेंडर",
     "nav.procedures": "प्रक्रियाएँ",
     "nav.invoices": "बिल",
+    "nav.consultations": "परामर्श",
+    "nav.reports": "रिपोर्ट",
     "nav.backups": "बैकअप",
+    "nav.settings": "सेटिंग्स",
     "nav.help": "सहायता और टूर",
 
     "common.save": "सहेजें",
@@ -234,6 +285,9 @@ export const translations: Record<Locale, Dict> = {
 
     "dashboard.title": "डैशबोर्ड",
     "dashboard.subtitle": "आज की गतिविधि का सारांश",
+    "dashboard.welcome_doctor": "स्वागत है, डॉ. {name}",
+    "dashboard.welcome_generic": "फिर से स्वागत है",
+    "dashboard.set_name_cta": "अपना नाम बताएँ →",
     "dashboard.patients": "मरीज़",
     "dashboard.today_appts": "आज की अपॉइंटमेंट",
     "dashboard.pending_invoices": "लंबित बिल",
@@ -282,9 +336,18 @@ export const translations: Record<Locale, Dict> = {
     "procedures.subtitle": "कैटलॉग और डिफ़ॉल्ट मूल्य",
     "procedures.new": "नई प्रक्रिया",
     "procedures.col.name": "नाम",
+    "procedures.col.category": "श्रेणी",
     "procedures.col.description": "विवरण",
     "procedures.col.default_price": "डिफ़ॉल्ट मूल्य (₹)",
     "procedures.empty": "अभी कोई प्रक्रिया परिभाषित नहीं है।",
+    "procedures.filter.all": "सभी श्रेणियाँ",
+    "procedures.form.name": "नाम",
+    "procedures.form.category": "श्रेणी / विशेषज्ञता",
+    "procedures.form.category_placeholder": "जैसे दंत, गैस्ट्रो",
+    "procedures.form.description": "विवरण",
+    "procedures.form.price": "डिफ़ॉल्ट मूल्य (₹)",
+    "procedures.added": "प्रक्रिया जोड़ी गई",
+    "procedures.confirm_delete": "इस प्रक्रिया को हटाएँ?",
 
     "invoices.title": "बिल",
     "invoices.new": "नया बिल",
@@ -374,6 +437,43 @@ export const translations: Record<Locale, Dict> = {
     "tour.backups.title": "आपका डेटा सुरक्षित है",
     "tour.backups.body":
       "हर कुछ घंटों में स्वचालित स्नैपशॉट, सभी टेबल का CSV एक्सपोर्ट सहित। zip डाउनलोड करके USB पर कॉपी करें।",
+
+    "settings.title": "सेटिंग्स",
+    "settings.subtitle": "आपकी प्रोफ़ाइल और क्लिनिक विवरण",
+    "settings.section.doctor": "डॉक्टर प्रोफ़ाइल",
+    "settings.section.registration": "मेडिकल काउंसिल पंजीकरण",
+    "settings.section.clinic": "क्लिनिक विवरण",
+    "settings.section.data": "डेटा और संग्रहण",
+    "settings.doctor_name": "डॉक्टर का नाम",
+    "settings.doctor_name_help":
+      "हर बिल और प्रिस्क्रिप्शन पर \"Dr. <नाम>\" के रूप में छपेगा।",
+    "settings.qualifications": "योग्यताएँ",
+    "settings.qualifications_help":
+      "उदा. MBBS, MD — नाम के बाद दस्तावेज़ों पर छपती हैं।",
+    "settings.specialization": "आपकी विशेषज्ञता",
+    "settings.specialization_help":
+      "नई प्रक्रियाओं की डिफ़ॉल्ट श्रेणी और प्रिंटआउट पर दिखाई जाती है।",
+    "settings.registration_help":
+      "भारतीय चिकित्सा परिषद (व्यावसायिक आचरण) विनियम 2002, धारा 1.4.2 के अनुसार प्रत्येक डॉक्टर को मरीज़ को दिए जाने वाले हर प्रिस्क्रिप्शन, लैब रिपोर्ट, रसीद (बिल) और प्रमाणपत्र पर अपना राज्य चिकित्सा परिषद / NMC पंजीकरण क्रमांक अवश्य दिखाना होगा। एक बार भर दें, हम इसे हर दस्तावेज़ पर स्वतः छापेंगे।",
+    "settings.reg_number": "पंजीकरण संख्या",
+    "settings.reg_council": "जारीकर्ता परिषद (राज्य मेडिकल काउंसिल / NMC)",
+    "settings.reg_preview": "पूर्वावलोकन:",
+    "settings.mandatory_banner_title":
+      "बिल और प्रिस्क्रिप्शन सक्षम करने के लिए प्रोफ़ाइल पूर्ण करें",
+    "settings.mandatory_banner_body":
+      "डॉक्टर का नाम, क्लिनिक का नाम और पंजीकरण संख्या हर दस्तावेज़ पर आवश्यक है।",
+    "settings.clinic_name": "क्लिनिक / अभ्यास का नाम",
+    "settings.clinic_address": "क्लिनिक का पता",
+    "settings.clinic_phone": "क्लिनिक का फ़ोन",
+    "settings.clinic_email": "क्लिनिक का ईमेल",
+    "settings.clinic_gstin": "GSTIN (वैकल्पिक)",
+    "settings.data_location": "डेटा फ़ोल्डर",
+    "settings.data_location_help":
+      "आपके मरीज़ के रिकॉर्ड, बिल और बैकअप यहाँ रहते हैं। अनइंस्टॉल करने पर नहीं हटाए जाते — डेटा हमेशा आपका है।",
+    "settings.data_safe":
+      "आपका डेटा इसी लैपटॉप पर संग्रहित है और पुनः आरंभ, शटडाउन और पुनः स्थापना से सुरक्षित रहता है।",
+    "settings.saved": "सेटिंग्स सहेजी गईं",
+    "settings.save_failed": "सेटिंग्स सहेजी नहीं जा सकीं",
 
     "lang.label": "भाषा",
   },

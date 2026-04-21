@@ -42,7 +42,7 @@ jobs:
           python -c "
           import ast, pathlib, sys
           bad = []
-          for p in list(pathlib.Path('backend').rglob('*.py')) + [pathlib.Path('main.py')]:
+          for p in list(pathlib.Path('backend').rglob('*.py')) + [pathlib.Path('launcher.py')]:
               try:
                   ast.parse(p.read_text())
               except SyntaxError as e:

@@ -1,7 +1,7 @@
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useRef, useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Plus, Trash2, FileText } from "lucide-react";
+import { Plus, Trash2, FileText, Wallet } from "lucide-react";
 import { api, Invoice, Patient, Procedure } from "../api";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/Modal";
@@ -26,9 +26,11 @@ export default function Invoices() {
 
   const [patientId, setPatientId] = useState("");
   const [notes, setNotes] = useState("");
+  const [discount, setDiscount] = useState(0);
   const [lines, setLines] = useState<Line[]>([
     { procedure_id: "", description: "", quantity: 1, unit_price: 0 },
   ]);
+  const lineRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const load = () =>
     api.get<Invoice[]>(`/api/invoices${pendingOnly ? "?pending_only=true" : ""}`).then(setInvoices);
@@ -53,11 +55,13 @@ export default function Invoices() {
     setLines((p) => p.filter((_, idx) => idx !== i));
   }
 
-  const total = lines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
+  const subtotal = lines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
+  const total = Math.max(subtotal - discount, 0);
 
   function resetForm() {
     setPatientId("");
     setNotes("");
+    setDiscount(0);
     setLines([{ procedure_id: "", description: "", quantity: 1, unit_price: 0 }]);
   }
 
@@ -70,6 +74,7 @@ export default function Invoices() {
       await api.post("/api/invoices", {
         patient_id: Number(patientId),
         notes: notes || null,
+        discount_amount: discount || 0,
         items: validLines.map((l) => ({
           procedure_id: l.procedure_id ? Number(l.procedure_id) : null,
           description: l.description,
@@ -88,7 +93,30 @@ export default function Invoices() {
 
   async function remove(id: number) {
     if (!confirm("Delete this invoice and its payments?")) return;
-    await api.del(`/api/invoices/${id}`);
+    const data: any = await api.del(`/api/invoices/${id}`);
+    if (data?.undo_token) {
+      toast.success(
+        (t) => (
+          <span className="flex items-center gap-3">
+            Invoice deleted.
+            <button
+              className="underline font-semibold text-brand-700"
+              onClick={async () => {
+                await api.post(`/api/undo/${data.undo_token}`);
+                toast.dismiss(t.id);
+                toast.success("Restored");
+                load();
+              }}
+            >
+              Undo
+            </button>
+          </span>
+        ),
+        { duration: 6000 },
+      );
+    } else {
+      toast.success("Deleted");
+    }
     load();
   }
 
@@ -149,6 +177,15 @@ export default function Invoices() {
                 <td className="px-4 py-3"><StatusBadge value={inv.status} /></td>
                 <td className="px-4 py-3 text-right">
                   <div className="inline-flex items-center gap-2">
+                    {inv.status !== "paid" && (
+                      <Link
+                        to={`/invoices/${inv.id}`}
+                        title="Record payment"
+                        className="text-slate-400 hover:text-emerald-600"
+                      >
+                        <Wallet size={16} />
+                      </Link>
+                    )}
                     <a
                       href={`/api/invoices/${inv.id}/pdf`}
                       target="_blank"
@@ -250,11 +287,22 @@ export default function Invoices() {
                     onChange={(e) => updateLine(i, { quantity: Number(e.target.value) })}
                   />
                   <input
+                    ref={(el) => { lineRefs.current[i] = el; }}
                     className="input col-span-2 text-right"
                     type="number"
                     placeholder="Price"
                     value={l.unit_price}
                     onChange={(e) => updateLine(i, { unit_price: Number(e.target.value) })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        // Keyboard-first flow: Enter on the last line's price
+                        // adds a new row and focuses it; otherwise jumps to
+                        // the next row's procedure dropdown.
+                        if (i === lines.length - 1) addLine();
+                        setTimeout(() => lineRefs.current[i + 1]?.focus(), 0);
+                      }
+                    }}
                   />
                   <button
                     type="button"
@@ -267,8 +315,30 @@ export default function Invoices() {
                 </div>
               ))}
             </div>
-            <div className="text-right text-sm mt-3 text-slate-600">
-              Total: <span className="font-semibold text-slate-900">₹ {total.toLocaleString()}</span>
+            <div className="mt-3 flex items-end justify-end gap-3 text-sm">
+              <div>
+                <label className="label !mb-1">Discount (₹)</label>
+                <input
+                  className="input text-right w-32"
+                  type="number"
+                  min={0}
+                  value={discount}
+                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+                />
+              </div>
+              <div className="text-right">
+                <div className="text-slate-500 text-xs">
+                  Subtotal: ₹ {subtotal.toLocaleString()}
+                </div>
+                {discount > 0 && (
+                  <div className="text-amber-600 text-xs">
+                    Discount: −₹ {discount.toLocaleString()}
+                  </div>
+                )}
+                <div className="text-base font-semibold text-slate-900">
+                  Total: ₹ {total.toLocaleString()}
+                </div>
+              </div>
             </div>
           </div>
 

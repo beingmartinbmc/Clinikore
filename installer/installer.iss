@@ -12,7 +12,7 @@
 ; AppVersion can be overridden from the command line with
 ; /DAppVersion=x.y.z (used by CI so the tag drives the installer version).
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 #define AppPublisher "Clinikore"
 #define AppURL       "https://example.com"

@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(SPECPATH).parent
 
 # Absolute paths (forward slashes are fine — PyInstaller normalizes).
-ENTRY = str(ROOT / "main.py")
+ENTRY = str(ROOT / "launcher.py")
 FRONTEND_DIST = str(ROOT / "frontend" / "dist")
 ICON = str(ROOT / "assets" / "clinikore.ico")
 

@@ -25,7 +25,7 @@ if not exist frontend\dist\index.html (
 )
 
 call .venv\Scripts\activate.bat
-python main.py
+python launcher.py
 set "EXITCODE=%ERRORLEVEL%"
 popd
 exit /b %EXITCODE%

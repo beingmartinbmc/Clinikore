@@ -17,4 +17,4 @@ fi
 
 # shellcheck disable=SC1091
 source .venv/bin/activate
-exec python main.py
+exec python launcher.py

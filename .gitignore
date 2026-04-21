@@ -25,3 +25,13 @@ frontend/node_modules/
 
 # Logs
 *.log
+
+# Coverage
+.coverage
+coverage/
+frontend/coverage/
+htmlcov/
+
+# Node (stray root install)
+/node_modules/
+
