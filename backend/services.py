@@ -684,15 +684,20 @@ def _invoice_rx_block_html(note_data: Optional[dict], esc) -> str:
     rows = _rx_rows_from_note(note_data)
     if not rows:
         return ""
-    body = "".join(
-        f"<tr><td style='width:26px'>{i+1}</td>"
-        f"<td><b>{esc(r['medicine'])}</b>"
-        f"{'<div class=\"muted\" style=\"font-size:0.8rem\">' + esc(r['instructions']) + '</div>' if r['instructions'] else ''}"
-        f"</td>"
-        f"<td>{esc(r['dose'] or '—')}</td>"
-        f"<td>{esc(r['duration'] or '—')}</td></tr>"
-        for i, r in enumerate(rows)
-    )
+    def _rx_row_html(i: int, r: dict) -> str:
+        instr = r["instructions"]
+        instr_html = (
+            f'<div class="muted" style="font-size:0.8rem">{esc(instr)}</div>'
+            if instr else ""
+        )
+        return (
+            f"<tr><td style='width:26px'>{i + 1}</td>"
+            f"<td><b>{esc(r['medicine'])}</b>{instr_html}</td>"
+            f"<td>{esc(r['dose'] or '—')}</td>"
+            f"<td>{esc(r['duration'] or '—')}</td></tr>"
+        )
+
+    body = "".join(_rx_row_html(i, r) for i, r in enumerate(rows))
     return (
         "<div class='card'>"
         "<h3>Prescription (Rx)</h3>"
