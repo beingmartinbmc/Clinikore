@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { api, Appointment, DashboardSummary } from "../api";
+import { Link } from "react-router-dom";
+import { api, Appointment, DashboardSummary, Settings } from "../api";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
-import { Users, CalendarClock, Receipt, Wallet, TrendingUp } from "lucide-react";
+import { Users, CalendarClock, Receipt, Wallet, TrendingUp, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import { useI18n } from "../i18n/I18nContext";
 
@@ -40,9 +41,11 @@ export default function Dashboard() {
   const { t } = useI18n();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [today, setToday] = useState<Appointment[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
     api.get<DashboardSummary>("/api/dashboard").then(setSummary).catch(() => {});
+    api.get<Settings>("/api/settings").then(setSettings).catch(() => {});
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     const end = new Date(start);
@@ -55,16 +58,38 @@ export default function Dashboard() {
       .catch(() => {});
   }, []);
 
+  const doctorName = settings?.doctor_name?.trim();
+  const headerTitle = doctorName
+    ? t("dashboard.welcome_doctor", { name: doctorName })
+    : t("dashboard.title");
+  const headerSubtitle = doctorName ? t("dashboard.subtitle") : t("dashboard.subtitle");
+
   return (
     <div className="p-8">
-      <PageHeader title={t("dashboard.title")} subtitle={t("dashboard.subtitle")} />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <PageHeader
+        title={headerTitle}
+        subtitle={headerSubtitle}
+        actions={
+          !doctorName && settings !== null ? (
+            <Link to="/settings" className="btn-outline text-sm">
+              {t("dashboard.set_name_cta")}
+            </Link>
+          ) : null
+        }
+      />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <Stat icon={Users} label={t("dashboard.patients")} value={String(summary?.patients ?? "—")} />
         <Stat
           icon={CalendarClock}
           label={t("dashboard.today_appts")}
           value={String(summary?.today_appointments ?? "—")}
           tone="emerald"
+        />
+        <Stat
+          icon={ClipboardList}
+          label="Pending treatment"
+          value={String(summary?.pending_treatment_patients ?? "—")}
+          tone="amber"
         />
         <Stat
           icon={Receipt}

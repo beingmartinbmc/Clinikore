@@ -5,6 +5,7 @@ import { Plus, Search, Trash2, Phone, Mail } from "lucide-react";
 import { api, Patient } from "../api";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/Modal";
+import StatusBadge from "../components/StatusBadge";
 import { format } from "date-fns";
 import { useI18n } from "../i18n/I18nContext";
 
@@ -60,8 +61,29 @@ export default function Patients() {
   async function remove(id: number) {
     if (!confirm(t("patients.confirm_delete"))) return;
     try {
-      await api.del(`/api/patients/${id}`);
-      toast.success("Patient deleted");
+      const data: any = await api.del(`/api/patients/${id}`);
+      if (data?.undo_token) {
+        toast.success(
+          (tt) => (
+            <span className="flex items-center gap-3">
+              Patient deleted.
+              <button
+                className="underline font-semibold text-brand-700"
+                onClick={async () => {
+                  await api.post(`/api/undo/${data.undo_token}`);
+                  toast.dismiss(tt.id);
+                  load();
+                }}
+              >
+                Undo
+              </button>
+            </span>
+          ),
+          { duration: 6000 },
+        );
+      } else {
+        toast.success("Patient deleted");
+      }
       load();
     } catch (e: any) {
       toast.error(e.message);
@@ -111,6 +133,16 @@ export default function Patients() {
                   <Link to={`/patients/${p.id}`} className="font-medium text-slate-900 hover:text-brand-700">
                     {p.name}
                   </Link>
+                  {p.lifecycle && (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <StatusBadge value={p.lifecycle} />
+                      {typeof p.pending_steps === "number" && p.pending_steps > 0 && (
+                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                          {p.pending_steps} pending
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-3">{p.age ?? "—"}</td>
                 <td className="px-4 py-3">

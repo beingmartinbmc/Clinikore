@@ -5,9 +5,17 @@ const styles: Record<string, string> = {
   scheduled: "bg-blue-100 text-blue-700",
   completed: "bg-emerald-100 text-emerald-700",
   cancelled: "bg-rose-100 text-rose-700",
+  no_show: "bg-purple-100 text-purple-700",
   paid: "bg-emerald-100 text-emerald-700",
   partial: "bg-amber-100 text-amber-700",
   unpaid: "bg-rose-100 text-rose-700",
+  // Patient lifecycle
+  new: "bg-sky-100 text-sky-700",
+  consulted: "bg-violet-100 text-violet-700",
+  planned: "bg-indigo-100 text-indigo-700",
+  in_progress: "bg-amber-100 text-amber-700",
+  // Treatment-step status extras
+  skipped: "bg-slate-200 text-slate-700",
 };
 
 // Map DB status value -> i18n key. Unknown values fall back to raw text.
@@ -22,7 +30,7 @@ const labelKey: Record<string, string> = {
 
 export default function StatusBadge({ value }: { value: string }) {
   const { t } = useI18n();
-  const label = labelKey[value] ? t(labelKey[value]) : value;
+  const label = labelKey[value] ? t(labelKey[value]) : value.replace("_", " ");
   return (
     <span className={clsx("badge", styles[value] || "bg-slate-100 text-slate-700")}>
       {label}

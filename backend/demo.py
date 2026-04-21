@@ -7,6 +7,7 @@ touching real patient data.
 """
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta, date
 from typing import List
@@ -18,6 +19,7 @@ log = logging.getLogger("clinikore.demo")
 from backend.models import (
     Appointment,
     AppointmentStatus,
+    ConsultationNote,
     Invoice,
     InvoiceItem,
     InvoiceStatus,
@@ -178,9 +180,11 @@ def seed_demo(session: Session) -> dict:
 
     # --- Invoices + payments -------------------------------------------
     # Invoice 1 — Rahul, fully paid (checkup)
+    # Note text deliberately avoids payment status — that's computed from
+    # the actual paid/total so a stale note can't contradict reality.
     inv1 = Invoice(
         patient_id=patients[1].id,
-        notes=f"{DEMO_TAG} Routine checkup — fully paid.",
+        notes=f"{DEMO_TAG} Routine checkup — consultation + scaling.",
     )
     inv1.items.append(InvoiceItem(
         procedure_id=proc("Consultation").id,
@@ -205,7 +209,7 @@ def seed_demo(session: Session) -> dict:
     # Invoice 2 — Vikram, partial payment (pending dues demo)
     inv2 = Invoice(
         patient_id=patients[3].id,
-        notes=f"{DEMO_TAG} Partial payment \u2014 balance pending.",
+        notes=f"{DEMO_TAG} Crown on 46 + composite on 27.",
     )
     inv2.items.append(InvoiceItem(
         procedure_id=proc("Crown (PFM)").id,
@@ -228,16 +232,211 @@ def seed_demo(session: Session) -> dict:
     session.add(inv2)
 
     session.commit()
+    for a in appts:
+        session.refresh(a)
+
+    # --- Consultation notes with prescriptions -------------------------
+    # A mix of dental, medical, ENT and derm so the Consultations page and
+    # printable Rx have realistic content to browse. Prescriptions are
+    # JSON-encoded lists of ``{drug, strength, frequency, duration,
+    # instructions}`` rows -- same shape the editor produces.
+    def _rx(items: list[dict]) -> str:
+        return json.dumps(items)
+
+    # appts[0] is Priya (today, scheduled) — no note yet (frontend creates
+    # one on completion).
+    # appts[3] is Rahul's completed routine checkup; give it a full note
+    # with Rx so the demo shows the end-to-end flow.
+    rahul_note = ConsultationNote(
+        patient_id=patients[1].id,
+        appointment_id=appts[3].id,
+        chief_complaint=f"{DEMO_TAG} Routine diabetic review",
+        diagnosis="Type 2 DM, controlled. HbA1c 6.8%.",
+        treatment_advised="Continue Metformin. Review in 3 months.",
+        prescription_items=_rx([
+            {
+                "drug": "Metformin",
+                "strength": "500 mg",
+                "frequency": "BD (with meals)",
+                "duration": "3 months",
+                "instructions": "Continue current dose",
+            },
+            {
+                "drug": "Atorvastatin",
+                "strength": "10 mg",
+                "frequency": "HS (bedtime)",
+                "duration": "3 months",
+                "instructions": "Statin for lipid control",
+            },
+            {
+                "drug": "Aspirin",
+                "strength": "75 mg",
+                "frequency": "OD after lunch",
+                "duration": "Continue",
+                "instructions": "Low-dose prophylaxis",
+            },
+        ]),
+        prescription_notes="Fasting blood sugar + HbA1c before next visit.",
+    )
+    # appts[2] is Vikram's crown-fitting appointment tomorrow — create a
+    # dental note with analgesic Rx.
+    vikram_note = ConsultationNote(
+        patient_id=patients[3].id,
+        appointment_id=appts[2].id,
+        chief_complaint=f"{DEMO_TAG} Crown fitting on 46",
+        diagnosis="Endodontically treated 46, prepped for PFM crown.",
+        treatment_advised="Crown cementation. Soft diet for 24h.",
+        prescription_items=_rx([
+            {
+                "drug": "Ibuprofen",
+                "strength": "400 mg",
+                "frequency": "TDS after food",
+                "duration": "3 days",
+                "instructions": "Only if pain; stop if GI upset",
+            },
+            {
+                "drug": "Chlorhexidine Mouthwash",
+                "strength": "0.2%",
+                "frequency": "10 ml BD",
+                "duration": "5 days",
+                "instructions": "Swish 30 sec, do not rinse with water after",
+            },
+        ]),
+        prescription_notes="Avoid hard/sticky foods on 46 for 24 hours.",
+    )
+    # appts[1] is Ananya's paediatric first dental visit — no Rx, just a
+    # note illustrating a non-prescription consultation.
+    ananya_note = ConsultationNote(
+        patient_id=patients[2].id,
+        appointment_id=appts[1].id,
+        chief_complaint=f"{DEMO_TAG} First dental visit",
+        diagnosis="Healthy deciduous dentition, no caries.",
+        treatment_advised="Brushing demo, fluoride toothpaste, review in 6 months.",
+        prescription_notes="Parent counselling on night-time milk bottle.",
+    )
+    # Standalone note (no appointment) — Neha's dermatology follow-up.
+    neha_note = ConsultationNote(
+        patient_id=patients[4].id,
+        appointment_id=None,
+        chief_complaint=f"{DEMO_TAG} Acne flare on chin",
+        diagnosis="Mild-moderate acne vulgaris, hormonal pattern.",
+        treatment_advised="Topical retinoid + antibiotic. Avoid occlusive makeup.",
+        prescription_items=_rx([
+            {
+                "drug": "Adapalene Gel",
+                "strength": "0.1%",
+                "frequency": "Once at night",
+                "duration": "6 weeks",
+                "instructions": "Pea-sized amount, dry skin",
+            },
+            {
+                "drug": "Clindamycin Gel",
+                "strength": "1%",
+                "frequency": "Morning",
+                "duration": "4 weeks",
+                "instructions": "Apply after face wash",
+            },
+            {
+                "drug": "Doxycycline",
+                "strength": "100 mg",
+                "frequency": "OD after food",
+                "duration": "4 weeks",
+                "instructions": "Avoid direct sunlight",
+            },
+        ]),
+        prescription_notes="Review in 4 weeks. SPF 30+ daily.",
+    )
+
+    for n in (rahul_note, vikram_note, ananya_note, neha_note):
+        session.add(n)
+    session.commit()
+
+    # --- Extra invoices ------------------------------------------------
+    # Invoice 3 — Priya, unpaid (today's consultation).
+    inv3 = Invoice(
+        patient_id=patients[0].id,
+        notes=f"{DEMO_TAG} Today's consultation — unpaid.",
+    )
+    inv3.items.append(InvoiceItem(
+        procedure_id=proc("Consultation").id,
+        description="Consultation",
+        quantity=1, unit_price=proc("Consultation").default_price,
+    ))
+    inv3.total = sum(i.quantity * i.unit_price for i in inv3.items)
+    inv3.paid = 0
+    inv3.status = InvoiceStatus.unpaid
+    session.add(inv3)
+
+    # Invoice 4 — Ananya's dental screening, fully paid in cash.
+    inv4 = Invoice(
+        patient_id=patients[2].id,
+        notes=f"{DEMO_TAG} Paediatric dental screening — paid.",
+    )
+    inv4.items.append(InvoiceItem(
+        procedure_id=proc("Consultation").id,
+        description="Paediatric consultation",
+        quantity=1, unit_price=proc("Consultation").default_price,
+    ))
+    inv4.items.append(InvoiceItem(
+        procedure_id=proc("Pediatric Cleaning").id,
+        description="Pediatric cleaning",
+        quantity=1, unit_price=proc("Pediatric Cleaning").default_price,
+    ))
+    inv4.total = sum(i.quantity * i.unit_price for i in inv4.items)
+    inv4.payments.append(Payment(
+        amount=inv4.total,
+        method=PaymentMethod.cash,
+        reference="DEMO-CASH-004",
+    ))
+    inv4.paid = inv4.total
+    inv4.status = InvoiceStatus.paid
+    session.add(inv4)
+
+    # Invoice 5 — Neha's dermatology (no appointment). Card payment.
+    inv5 = Invoice(
+        patient_id=patients[4].id,
+        notes=f"{DEMO_TAG} Acne follow-up — Rx issued.",
+    )
+    inv5.items.append(InvoiceItem(
+        procedure_id=proc("Skin Consultation").id,
+        description="Dermatology consultation",
+        quantity=1, unit_price=proc("Skin Consultation").default_price,
+    ))
+    inv5.total = sum(i.quantity * i.unit_price for i in inv5.items)
+    inv5.payments.append(Payment(
+        amount=inv5.total,
+        method=PaymentMethod.card,
+        reference="DEMO-CARD-005",
+    ))
+    inv5.paid = inv5.total
+    inv5.status = InvoiceStatus.paid
+    session.add(inv5)
+
+    session.commit()
+    # Back-link Rahul / Vikram / Neha notes to their invoices so Print Rx
+    # from the invoice detail page lights up.
+    rahul_note.invoice_id = inv1.id
+    vikram_note.invoice_id = inv2.id
+    neha_note.invoice_id = inv5.id
+    for n in (rahul_note, vikram_note, neha_note):
+        session.add(n)
+    session.commit()
+
+    invoice_count = 5
+    note_count = 4
     result = {
         "created": True,
         "patients": len(patients),
         "appointments": len(appts),
         "treatments": len(treatments),
-        "invoices": 2,
+        "invoices": invoice_count,
+        "notes": note_count,
     }
     log.info(
-        "Demo data seeded: %d patients, %d appointments, %d treatments, %d invoices",
-        result["patients"], result["appointments"], result["treatments"], result["invoices"],
+        "Demo data seeded: %d patients, %d appointments, %d treatments, "
+        "%d invoices, %d consultation notes",
+        result["patients"], result["appointments"], result["treatments"],
+        result["invoices"], result["notes"],
     )
     return result
 
@@ -249,7 +448,10 @@ def clear_demo(session: Session) -> dict:
     ).all()
     pids = [p.id for p in demo_patients]
 
-    removed = {"patients": 0, "appointments": 0, "treatments": 0, "invoices": 0}
+    removed = {
+        "patients": 0, "appointments": 0, "treatments": 0,
+        "invoices": 0, "notes": 0,
+    }
 
     if pids:
         for inv in session.exec(
@@ -262,6 +464,15 @@ def clear_demo(session: Session) -> dict:
         ).all():
             session.delete(t)
             removed["treatments"] += 1
+        # Clear consultation notes first (they reference appointments via FK),
+        # then the appointments themselves.
+        for n in session.exec(
+            select(ConsultationNote).where(
+                ConsultationNote.patient_id.in_(pids)  # type: ignore[arg-type]
+            )
+        ).all():
+            session.delete(n)
+            removed["notes"] += 1
         for a in session.exec(
             select(Appointment).where(Appointment.patient_id.in_(pids))  # type: ignore[arg-type]
         ).all():

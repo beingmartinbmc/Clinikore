@@ -10,6 +10,9 @@ reportlab==4.2.5
 python-multipart==0.0.12
 httpx==0.27.2
 
+# --- Testing (install manually with `pip install -r requirements.txt`) ---
+pytest==8.3.3
+
 # --- Desktop shell ---
 # macOS ships a WebKit backend and Windows ships the Edge/Chromium WebView2
 # runtime, so plain pywebview is enough there. Linux needs an explicit

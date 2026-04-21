@@ -27,7 +27,7 @@ on the local machine — the data never leaves the device.
 
 ```
 doctor-helper/
-├── main.py                 # Desktop launcher (pywebview + embedded uvicorn)
+├── launcher.py             # Desktop launcher (pywebview + embedded uvicorn)
 ├── requirements.txt
 ├── backend/
 │   ├── main.py             # FastAPI app + all routes
@@ -157,7 +157,7 @@ The build output is automatically served by FastAPI when you launch the app.
 ### As a desktop app (production)
 
 ```bash
-python main.py
+python launcher.py
 ```
 
 This boots uvicorn on `127.0.0.1:8765`, waits for it to be healthy, and opens
@@ -275,10 +275,56 @@ Store API keys in environment variables — never hardcode them.
 
 - **Windows** — see `installer/README.md`. One command produces a Setup.exe
   with a wizard, Desktop & Start Menu shortcuts, and a proper uninstaller.
-- **macOS** — `pyinstaller --windowed --name Clinikore --add-data "frontend/dist:frontend/dist" main.py`
+- **macOS** — `pyinstaller --windowed --name Clinikore --add-data "frontend/dist:frontend/dist" launcher.py`
   then wrap `dist/Clinikore.app` in a DMG with `create-dmg` (roadmap).
-- **Linux** — `pyinstaller --name Clinikore --add-data "frontend/dist:frontend/dist" main.py`
+- **Linux** — `pyinstaller --name Clinikore --add-data "frontend/dist:frontend/dist" launcher.py`
   then ship as AppImage or .deb (roadmap).
+
+## Testing
+
+The project ships with a full pytest-based end-to-end test suite that
+exercises every calculation path: patient lifecycle, appointments,
+treatments, consultation notes (prescriptions), treatment plans, invoice
+totals & discounts, multi-installment payments, PDF + HTML receipt
+generation, reports, dashboard aggregation, soft-delete / undo,
+DB-backed audit log, demo seeding, and backup creation.
+
+Layout:
+
+```
+tests/
+├── conftest.py                   # isolated tmp CLINIKORE_HOME + per-test DB reset
+├── test_patients.py
+├── test_procedures.py
+├── test_appointments.py
+├── test_treatments.py
+├── test_consultation_notes.py    # prescription-like records
+├── test_treatment_plans.py
+├── test_invoices_payments.py     # every discount / status / repayment path
+├── test_invoice_documents.py     # PDF + printable HTML receipt
+├── test_reports.py               # daily / monthly aggregates + CSVs
+├── test_dashboard.py
+├── test_lifecycle.py             # computed patient status
+├── test_undo.py                  # in-memory undo token buffer
+├── test_audit_db.py              # DB-backed audit log
+├── test_demo_and_backup.py
+├── test_settings.py
+└── test_e2e_workflows.py         # full patient→consult→invoice→pay→print→report flow
+```
+
+Run:
+
+```bash
+pip install -r requirements.txt    # pytest is listed there
+pytest
+```
+
+Tests create a fresh temporary `CLINIKORE_HOME` per session and truncate
+every table between tests, so ordering is irrelevant and no real data is
+touched. A few tests are marked `xfail` with a clear reason — those pin
+down known server-side bugs (double-add in `add_payment`, scalar unpack
+in the procedure-categories endpoint) so they start passing the moment
+the bug is fixed.
 
 ## License
 

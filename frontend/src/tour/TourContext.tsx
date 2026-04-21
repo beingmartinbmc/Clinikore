@@ -44,6 +44,15 @@ interface TourContextValue {
   demoLoading: boolean;
   loadDemoData: () => Promise<void>;
   clearDemoData: () => Promise<void>;
+
+  /**
+   * Monotonic counter bumped on every tour step transition and every demo
+   * data change. Use it as a `key` on a parent container to force the
+   * currently-mounted page to remount and re-fetch its data — fixes the
+   * "page shows stale data until I click Next → Back" issue.
+   */
+  refreshToken: number;
+  bumpRefresh: () => void;
 }
 
 const TourContext = createContext<TourContextValue | null>(null);
@@ -53,6 +62,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const [tourActive, setTourActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const bumpRefresh = useCallback(() => setRefreshToken((n) => n + 1), []);
 
   // Open the welcome modal automatically on first launch.
   useEffect(() => {
@@ -75,7 +86,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
     setTourActive(true);
     setWelcomeOpen(false);
     markOnboardingSeen();
-  }, []);
+    bumpRefresh();
+  }, [bumpRefresh]);
 
   const stopTour = useCallback(() => setTourActive(false), []);
 
@@ -87,31 +99,35 @@ export function TourProvider({ children }: { children: ReactNode }) {
       }
       return i + 1;
     });
-  }, []);
+    bumpRefresh();
+  }, [bumpRefresh]);
 
   const prevStep = useCallback(() => {
     setStepIndex((i) => Math.max(0, i - 1));
-  }, []);
+    bumpRefresh();
+  }, [bumpRefresh]);
 
   const loadDemoData = useCallback(async () => {
     setDemoLoading(true);
     try {
       const r = await fetch("/api/demo/seed", { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
+      bumpRefresh();
     } finally {
       setDemoLoading(false);
     }
-  }, []);
+  }, [bumpRefresh]);
 
   const clearDemoData = useCallback(async () => {
     setDemoLoading(true);
     try {
       const r = await fetch("/api/demo/clear", { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
+      bumpRefresh();
     } finally {
       setDemoLoading(false);
     }
-  }, []);
+  }, [bumpRefresh]);
 
   const value: TourContextValue = {
     welcomeOpen,
@@ -127,6 +143,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
     demoLoading,
     loadDemoData,
     clearDemoData,
+    refreshToken,
+    bumpRefresh,
   };
   return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
 }

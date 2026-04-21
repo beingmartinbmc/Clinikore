@@ -8,24 +8,31 @@ import {
   Activity,
   ShieldCheck,
   HelpCircle,
+  BarChart3,
+  NotebookPen,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import clsx from "clsx";
 import TourBanner from "../tour/TourBanner";
 import { useTour } from "../tour/TourContext";
 import { useI18n } from "../i18n/I18nContext";
 import LanguageSwitcher from "../i18n/LanguageSwitcher";
+import GlobalSearch from "./GlobalSearch";
 
 const NAV = [
   { to: "/", key: "nav.dashboard", icon: LayoutDashboard, end: true },
   { to: "/patients", key: "nav.patients", icon: Users },
   { to: "/calendar", key: "nav.calendar", icon: CalendarDays },
   { to: "/procedures", key: "nav.procedures", icon: Stethoscope },
+  { to: "/consultations", key: "nav.consultations", icon: NotebookPen },
   { to: "/invoices", key: "nav.invoices", icon: Receipt },
+  { to: "/reports", key: "nav.reports", icon: BarChart3 },
   { to: "/backups", key: "nav.backups", icon: ShieldCheck },
+  { to: "/settings", key: "nav.settings", icon: SettingsIcon },
 ];
 
 export default function Layout() {
-  const { openWelcome } = useTour();
+  const { openWelcome, refreshToken } = useTour();
   const { t } = useI18n();
   return (
     <div className="flex h-screen bg-slate-50">
@@ -72,8 +79,14 @@ export default function Layout() {
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto flex flex-col">
+        <div className="h-14 border-b border-slate-200 bg-white/80 backdrop-blur flex items-center gap-3 px-6 sticky top-0 z-30">
+          <GlobalSearch />
+        </div>
         <TourBanner />
-        <div className="flex-1">
+        {/* Keying the page container on refreshToken forces a remount
+            whenever the tour advances or demo data changes, so the current
+            page re-fetches its data instead of showing stale results. */}
+        <div key={refreshToken} className="flex-1">
           <Outlet />
         </div>
       </main>

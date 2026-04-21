@@ -16,7 +16,7 @@ function New-ClinikoreShortcut {
   $ws   = New-Object -ComObject WScript.Shell
   $link = $ws.CreateShortcut($LinkPath)
   $link.TargetPath       = Join-Path $RootDir ".venv\Scripts\pythonw.exe"
-  $link.Arguments        = "main.py"
+  $link.Arguments        = "launcher.py"
   $link.WorkingDirectory = $RootDir
   $link.Description      = "Clinikore - Offline Clinic Manager"
 

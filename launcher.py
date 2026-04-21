@@ -1,10 +1,13 @@
 """Clinikore — desktop launcher.
 
-Starts the FastAPI backend in a background thread, waits for it to be ready,
-then opens a native pywebview window pointing at it. When the window closes,
-the backend is torn down.
+Starts the FastAPI backend (``backend/main.py``) in a background thread,
+waits for it to be ready, then opens a native pywebview window pointing
+at it. When the window closes, the backend is torn down.
 
 If pywebview is not installed, this falls back to opening the default browser.
+
+This file is the **desktop entry point**; the HTTP API itself lives in
+``backend/main.py``.
 """
 from __future__ import annotations
 
