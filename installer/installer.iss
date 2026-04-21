@@ -9,7 +9,11 @@
 ; Install into: %LOCALAPPDATA%\Programs\Clinikore  (per-user, no admin)
 
 #define AppName      "Clinikore"
-#define AppVersion   "0.1.0"
+; AppVersion can be overridden from the command line with
+; /DAppVersion=x.y.z (used by CI so the tag drives the installer version).
+#ifndef AppVersion
+  #define AppVersion "0.1.0"
+#endif
 #define AppPublisher "Clinikore"
 #define AppURL       "https://example.com"
 #define AppExeName   "Clinikore.exe"
@@ -37,7 +41,12 @@ OutputBaseFilename=Clinikore-Setup-{#AppVersion}
 
 ; Nice modern look
 WizardStyle=modern
+; SetupIconFile is optional — only reference it if the file actually exists.
+; Drop a 256x256 .ico at assets\clinikore.ico and this will pick it up
+; automatically on the next build.
+#if FileExists(AddBackslash(SourcePath) + "..\assets\clinikore.ico")
 SetupIconFile=..\assets\clinikore.ico
+#endif
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 
