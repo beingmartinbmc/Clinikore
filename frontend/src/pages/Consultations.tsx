@@ -4,7 +4,6 @@ import toast from "react-hot-toast";
 import {
   FileText,
   NotebookPen,
-  Printer,
   Search,
   PillBottle,
   User,
@@ -24,6 +23,7 @@ import Modal from "../components/Modal";
 import ConsultNoteEditor from "../components/ConsultNoteEditor";
 import { format, subDays, startOfMonth } from "date-fns";
 import clsx from "clsx";
+import { useI18n } from "../i18n/I18nContext";
 
 /**
  * Clinic-wide consultations & prescriptions page.
@@ -35,25 +35,17 @@ import clsx from "clsx";
  */
 type Filter = "all" | "rx" | "no_rx";
 
-const FILTERS: { id: Filter; label: string; icon: JSX.Element }[] = [
-  { id: "all", label: "All visits", icon: <ClipboardList size={13} /> },
-  { id: "rx", label: "With Rx", icon: <PillBottle size={13} /> },
-  { id: "no_rx", label: "Needs Rx", icon: <Sparkles size={13} /> },
-];
-
-// Quick date presets the doctor reaches for most often. Each button only
-// sets date_from; date_to defaults to today on the backend via "no upper
-// bound", but we set an explicit upper bound too so custom ranges work.
+// Quick date presets the doctor reaches for most often.
 type Preset = {
   id: string;
-  label: string;
+  labelKey: string;
   range: () => { from: string; to: string };
 };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const PRESETS: Preset[] = [
   {
     id: "7d",
-    label: "Last 7 days",
+    labelKey: "consult.preset.7d",
     range: () => ({
       from: format(subDays(new Date(), 6), "yyyy-MM-dd"),
       to: todayISO(),
@@ -61,7 +53,7 @@ const PRESETS: Preset[] = [
   },
   {
     id: "30d",
-    label: "Last 30 days",
+    labelKey: "consult.preset.30d",
     range: () => ({
       from: format(subDays(new Date(), 29), "yyyy-MM-dd"),
       to: todayISO(),
@@ -69,7 +61,7 @@ const PRESETS: Preset[] = [
   },
   {
     id: "mtd",
-    label: "This month",
+    labelKey: "consult.preset.mtd",
     range: () => ({
       from: format(startOfMonth(new Date()), "yyyy-MM-dd"),
       to: todayISO(),
@@ -78,6 +70,7 @@ const PRESETS: Preset[] = [
 ];
 
 export default function Consultations() {
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const [notes, setNotes] = useState<ConsultationNote[]>([]);
   const [q, setQ] = useState("");
@@ -86,6 +79,12 @@ export default function Consultations() {
   const [dateTo, setDateTo] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<ConsultationNote | null>(null);
+
+  const FILTERS: { id: Filter; label: string; icon: JSX.Element }[] = [
+    { id: "all", label: t("consult.filter.all"), icon: <ClipboardList size={13} /> },
+    { id: "rx", label: t("consult.filter.rx"), icon: <PillBottle size={13} /> },
+    { id: "no_rx", label: t("consult.filter.no_rx"), icon: <Sparkles size={13} /> },
+  ];
 
   function load() {
     setLoading(true);
@@ -116,12 +115,9 @@ export default function Consultations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, filter, dateFrom, dateTo]);
 
-  // URLs are rendered into <a target="_blank"> elements rather than being
-  // opened via JS. pywebview (our desktop shell) blocks window.open()
-  // popups, but target-blank anchors are handed off to the system
-  // browser — so the printable Rx and PDF always open reliably.
-  const printableUrl = (n: ConsultationNote) =>
-    `/api/consultation-notes/${n.id}/prescription`;
+  // URL is rendered into an <a target="_blank"> element rather than
+  // being opened via JS. pywebview blocks window.open() popups, but
+  // target-blank anchors are handed off to the system PDF viewer reliably.
   const pdfUrl = (n: ConsultationNote) =>
     `/api/consultation-notes/${n.id}/prescription.pdf`;
 
@@ -147,8 +143,7 @@ export default function Consultations() {
   }, [dateFrom, dateTo]);
 
   // Deep-link support: if the URL carries ?open=<noteId>, fetch that note
-  // and open it in the editor modal. Useful for jumping from an invoice
-  // page ("View consultation") or any bookmark.
+  // and open it in the editor modal.
   useEffect(() => {
     const openId = Number(searchParams.get("open") || "");
     if (!openId) return;
@@ -171,9 +166,6 @@ export default function Consultations() {
   }, [searchParams, notes]);
 
   const grouped = useMemo(() => {
-    // Group visits by day so the timeline reads naturally. The backend
-    // already sorts by created_at desc, so map insertion order preserves
-    // newest-first.
     const m = new Map<string, ConsultationNote[]>();
     for (const n of notes) {
       const key = format(
@@ -204,33 +196,33 @@ export default function Consultations() {
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
       <PageHeader
-        title="Consultations & prescriptions"
-        subtitle="Every visit note in one place — search, filter by date, open or re-issue the Rx."
+        title={t("consult.title")}
+        subtitle={t("consult.subtitle")}
       />
 
       {/* ─── Summary strip ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <StatCard
           icon={<ClipboardList size={16} />}
-          label="Visits"
+          label={t("consult.stat.visits")}
           value={stats.total}
           tone="slate"
         />
         <StatCard
           icon={<PillBottle size={16} />}
-          label="With Rx"
+          label={t("consult.stat.with_rx")}
           value={stats.rxCount}
           tone="brand"
         />
         <StatCard
           icon={<Stethoscope size={16} />}
-          label="Medicines"
+          label={t("consult.stat.medicines")}
           value={stats.meds}
           tone="indigo"
         />
         <StatCard
           icon={<User size={16} />}
-          label="Patients"
+          label={t("consult.stat.patients")}
           value={stats.patients}
           tone="amber"
         />
@@ -247,7 +239,7 @@ export default function Consultations() {
             />
             <input
               className="input pl-9"
-              placeholder="Search by patient, complaint, diagnosis or advice…"
+              placeholder={t("consult.search_placeholder")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -255,7 +247,7 @@ export default function Consultations() {
               <button
                 onClick={() => setQ("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                aria-label="Clear search"
+                aria-label={t("consult.clear_search")}
               >
                 <X size={14} />
               </button>
@@ -286,7 +278,7 @@ export default function Consultations() {
         <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col lg:flex-row gap-3 items-start lg:items-center">
           <div className="flex items-center gap-2 text-sm text-slate-600 shrink-0">
             <CalendarDays size={15} className="text-slate-400" />
-            <span className="font-medium">Date</span>
+            <span className="font-medium">{t("consult.date_label")}</span>
           </div>
           <div className="flex flex-wrap gap-2 items-center flex-1">
             <input
@@ -295,7 +287,7 @@ export default function Consultations() {
               value={dateFrom}
               max={dateTo || undefined}
               onChange={(e) => setDateFrom(e.target.value)}
-              aria-label="From"
+              aria-label={t("consult.date_from")}
             />
             <span className="text-slate-400 text-sm">→</span>
             <input
@@ -304,7 +296,7 @@ export default function Consultations() {
               value={dateTo}
               min={dateFrom || undefined}
               onChange={(e) => setDateTo(e.target.value)}
-              aria-label="To"
+              aria-label={t("consult.date_to")}
             />
             <div className="flex flex-wrap gap-1 ml-0 lg:ml-2">
               {PRESETS.map((p) => (
@@ -318,7 +310,7 @@ export default function Consultations() {
                       : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50",
                   )}
                 >
-                  {p.label}
+                  {t(p.labelKey)}
                 </button>
               ))}
               {dateFilterActive && (
@@ -326,7 +318,7 @@ export default function Consultations() {
                   onClick={clearDates}
                   className="px-2.5 py-1 text-xs rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 flex items-center gap-1"
                 >
-                  <X size={12} /> Clear
+                  <X size={12} /> {t("common.clear")}
                 </button>
               )}
             </div>
@@ -348,7 +340,7 @@ export default function Consultations() {
                 {day}
                 <span className="text-slate-300 font-normal">·</span>
                 <span className="text-slate-400 font-normal normal-case tracking-normal">
-                  {items.length} visit{items.length === 1 ? "" : "s"}
+                  {t("consult.visits_count", { count: items.length, s: items.length === 1 ? "" : "s" })}
                 </span>
               </div>
               <div className="space-y-2.5">
@@ -357,7 +349,6 @@ export default function Consultations() {
                     key={n.id}
                     note={n}
                     onOpen={() => setEditing(n)}
-                    printHref={printableUrl(n)}
                     pdfHref={pdfUrl(n)}
                   />
                 ))}
@@ -372,8 +363,8 @@ export default function Consultations() {
         onClose={() => setEditing(null)}
         title={
           editing?.patient_name
-            ? `${editing.patient_name} — consultation`
-            : "Consultation"
+            ? t("consult.modal_title", { name: editing.patient_name })
+            : t("consult.modal_title_generic")
         }
         width="max-w-3xl"
       >
@@ -430,13 +421,13 @@ function StatCard({
 }
 
 function ConsultationCard({
-  note, onOpen, printHref, pdfHref,
+  note, onOpen, pdfHref,
 }: {
   note: ConsultationNote;
   onOpen: () => void;
-  printHref: string;
   pdfHref: string;
 }) {
+  const { t } = useI18n();
   const rx = parsePrescriptionItems(note.prescription_items);
   const when = new Date(note.appointment_start || note.created_at);
   const initials = (note.patient_name || "?")
@@ -454,7 +445,7 @@ function ConsultationCard({
         <Link
           to={`/patients/${note.patient_id}`}
           className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-emerald-500 text-white font-semibold text-sm flex items-center justify-center shrink-0 shadow-sm"
-          title={`Open ${note.patient_name || "patient"}'s record`}
+          title={t("consult.open_patient_title", { name: note.patient_name || "" })}
         >
           {initials}
         </Link>
@@ -467,7 +458,7 @@ function ConsultationCard({
                 to={`/patients/${note.patient_id}`}
                 className="font-semibold text-slate-900 hover:text-brand-700 text-sm truncate block"
               >
-                {note.patient_name || `Patient #${note.patient_id}`}
+                {note.patient_name || t("consult.patient_number", { id: note.patient_id })}
               </Link>
               <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
                 <span>{format(when, "p")}</span>
@@ -475,7 +466,8 @@ function ConsultationCard({
                   <>
                     <span className="text-slate-300">·</span>
                     <span className="inline-flex items-center gap-1 text-brand-700 font-medium">
-                      <PillBottle size={11} /> {rx.length} medicine{rx.length === 1 ? "" : "s"}
+                      <PillBottle size={11} />{" "}
+                      {t("consult.medicines_count", { count: rx.length, s: rx.length === 1 ? "" : "s" })}
                     </span>
                   </>
                 )}
@@ -483,32 +475,24 @@ function ConsultationCard({
             </div>
 
             {/* Actions — fade in on hover on desktop, always visible on
-                mobile. Anchors (not buttons) so pywebview routes the
-                popup to the system browser instead of blocking it. */}
+                mobile. Only expose the PDF link — every PDF viewer already
+                has a Print button, so a separate print-HTML action was
+                redundant. */}
             <div className="flex items-center gap-1 shrink-0 opacity-100 lg:opacity-60 group-hover:opacity-100 transition-opacity">
-              <a
-                href={printHref}
-                target="_blank"
-                rel="noreferrer"
-                className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                title="Open printable prescription"
-              >
-                <Printer size={14} />
-              </a>
               <a
                 href={pdfHref}
                 target="_blank"
                 rel="noreferrer"
-                className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                title="Download prescription as PDF"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 border border-slate-200"
+                title={t("consult.pdf_title")}
               >
-                <FileText size={14} />
+                <FileText size={13} /> {t("consult.pdf")}
               </a>
               <button
                 onClick={onOpen}
                 className="px-2.5 py-1.5 rounded-md text-xs font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-100"
               >
-                Open
+                {t("consult.open")}
               </button>
             </div>
           </div>
@@ -516,13 +500,13 @@ function ConsultationCard({
           {/* SOAP fields */}
           <div className="mt-2 space-y-1.5">
             {note.chief_complaint && (
-              <Field label="Complaint" value={note.chief_complaint} tone="slate" />
+              <Field label={t("consult.field.complaint")} value={note.chief_complaint} tone="slate" />
             )}
             {note.diagnosis && (
-              <Field label="Diagnosis" value={note.diagnosis} tone="indigo" />
+              <Field label={t("consult.field.diagnosis")} value={note.diagnosis} tone="indigo" />
             )}
             {note.treatment_advised && (
-              <Field label="Advice" value={note.treatment_advised} tone="amber" />
+              <Field label={t("consult.field.advice")} value={note.treatment_advised} tone="amber" />
             )}
           </div>
 
@@ -530,7 +514,7 @@ function ConsultationCard({
           {rx.length > 0 && (
             <div className="mt-3 rounded-lg bg-brand-50/60 border border-brand-100 px-3 py-2 text-xs text-slate-700">
               <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-brand-700 font-semibold mb-1">
-                <PillBottle size={11} /> Prescription
+                <PillBottle size={11} /> {t("consult.rx_label")}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {rx.slice(0, 4).map((it, i) => (
@@ -549,7 +533,7 @@ function ConsultationCard({
                 ))}
                 {rx.length > 4 && (
                   <span className="text-slate-500 px-1">
-                    + {rx.length - 4} more
+                    {t("consult.rx_more", { count: rx.length - 4 })}
                   </span>
                 )}
               </div>
@@ -611,18 +595,17 @@ function SkeletonList() {
 }
 
 function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+  const { t } = useI18n();
   return (
     <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 px-6 text-center">
       <div className="mx-auto w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center mb-3">
         <NotebookPen size={22} className="text-brand-600" />
       </div>
       <h3 className="font-semibold text-slate-900">
-        {hasFilters ? "No matches" : "No consultations yet"}
+        {hasFilters ? t("consult.empty_filter_title") : t("consult.empty_nofilter_title")}
       </h3>
       <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-        {hasFilters
-          ? "Try a different search term or widen the date range."
-          : "Mark an appointment as completed or open a patient to add a visit note."}
+        {hasFilters ? t("consult.empty_filter_body") : t("consult.empty_nofilter_body")}
       </p>
     </div>
   );

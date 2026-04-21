@@ -439,10 +439,18 @@ def _soft_delete_response(session: Session, entity_type: str, entity, label: str
 # ==========================================================================
 def _patient_read(session: Session, p: Patient) -> PatientRead:
     lifecycle, last_visit, pending = services.compute_patient_lifecycle(session, p.id)
+    # Always surface a displayable age — compute from DOB when available so
+    # the value doesn't go stale, falling back to the legacy `age` column for
+    # records entered before DOB was a field.
+    age_display = services.compute_patient_age(p)
+    if age_display is None:
+        age_display = p.age
     return PatientRead(
         id=p.id,
         name=p.name,
-        age=p.age,
+        age=age_display,
+        date_of_birth=p.date_of_birth,
+        gender=p.gender,
         phone=p.phone,
         email=p.email,
         medical_history=p.medical_history,
@@ -461,6 +469,10 @@ def list_patients(
     q: Optional[str] = None,
     lifecycle: Optional[str] = None,
     include_deleted: bool = False,
+    # When True (default) the list is filtered to patients relevant for the
+    # doctor's configured category (e.g. pediatrics → under 18). Set to False
+    # to force the full list, e.g. from admin / global-search contexts.
+    relevance: bool = True,
     s: Session = Depends(get_session),
 ):
     stmt = select(Patient).order_by(Patient.created_at.desc())
@@ -470,6 +482,14 @@ def list_patients(
         like = f"%{q}%"
         stmt = stmt.where((Patient.name.ilike(like)) | (Patient.phone.ilike(like)))
     rows = s.exec(stmt).all()
+
+    if relevance:
+        category = None
+        cfg = s.get(Settings, 1)
+        if cfg is not None:
+            category = cfg.doctor_category
+        rows = services.filter_patients_by_category(rows, category)
+
     results = [_patient_read(s, p) for p in rows]
     if lifecycle:
         results = [r for r in results if r.lifecycle and r.lifecycle.value == lifecycle]
@@ -559,6 +579,14 @@ def create_procedure(payload: ProcedureCreate, s: Session = Depends(get_session)
                     summary=p.name, name=p.name, price=p.default_price)
     s.commit()
     return p
+
+
+@app.get("/api/doctor-categories", response_model=List[str])
+def list_doctor_categories():
+    """Canonical list of structured doctor-category values. Driven by the
+    backend so the frontend onboarding / settings pages stay in sync with
+    the relevance filter logic in `services.is_patient_relevant`."""
+    return list(services.DOCTOR_CATEGORIES)
 
 
 @app.get("/api/procedures/categories", response_model=List[str])
@@ -2765,9 +2793,12 @@ def update_settings(payload: SettingsUpdate, s: Session = Depends(get_session)):
             changed.append(k)
     if changed:
         row.updated_at = utcnow()
-        # Stamp onboarded_at the first time the doctor supplies their name+specialty
-        # from the onboarding flow.
-        if row.doctor_name and row.specialization and not row.onboarded_at:
+        # Stamp onboarded_at the first time the doctor supplies their name +
+        # a clinical category (either the structured `doctor_category` picked
+        # during onboarding or the free-text `specialization`). Either is
+        # sufficient — category is preferred because it drives relevance
+        # filtering but legacy specialization is accepted for back-compat.
+        if row.doctor_name and (row.doctor_category or row.specialization) and not row.onboarded_at:
             row.onboarded_at = utcnow()
         s.add(row)
         s.commit()

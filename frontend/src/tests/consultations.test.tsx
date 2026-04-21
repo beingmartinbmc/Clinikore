@@ -75,12 +75,10 @@ describe("Consultations page", () => {
     expect(screen.getByText("Paracetamol")).toBeInTheDocument();
     expect(screen.getByText(/\+ 1 more/i)).toBeInTheDocument();
 
-    // Every card has both a printable link and a PDF link.
+    // Every card exposes a single PDF link (the viewer has its own
+    // Print button — showing a second HTML-print action was redundant).
     expect(
-      screen.getAllByTitle(/printable prescription/i).length,
-    ).toBeGreaterThanOrEqual(2);
-    expect(
-      screen.getAllByTitle(/prescription as PDF/i).length,
+      screen.getAllByTitle(/prescription pdf/i).length,
     ).toBeGreaterThanOrEqual(2);
   });
 

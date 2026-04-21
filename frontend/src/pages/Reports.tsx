@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, Wallet, TrendingUp, Clock, Stethoscope } from "lucide-react";
 import { api } from "../api";
 import PageHeader from "../components/PageHeader";
+import { useI18n } from "../i18n/I18nContext";
 
 type Row = Record<string, any>;
 
@@ -15,6 +16,7 @@ function daysAgoISO(n: number): string {
 }
 
 export default function Reports() {
+  const { t } = useI18n();
   const [range, setRange] = useState({ start: daysAgoISO(29), end: todayISO() });
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [daily, setDaily] = useState<Row[]>([]);
@@ -63,12 +65,12 @@ export default function Reports() {
   return (
     <div className="p-8 max-w-6xl">
       <PageHeader
-        title="Reports"
-        subtitle="Collections, revenue, pending dues and most-performed procedures."
+        title={t("reports.title")}
+        subtitle={t("reports.subtitle")}
       />
       <div className="card p-4 mb-6 flex flex-wrap items-end gap-4">
         <div>
-          <label className="label">From</label>
+          <label className="label">{t("reports.from")}</label>
           <input
             type="date"
             className="input"
@@ -77,7 +79,7 @@ export default function Reports() {
           />
         </div>
         <div>
-          <label className="label">To</label>
+          <label className="label">{t("reports.to")}</label>
           <input
             type="date"
             className="input"
@@ -86,7 +88,7 @@ export default function Reports() {
           />
         </div>
         <div>
-          <label className="label">Month</label>
+          <label className="label">{t("reports.month")}</label>
           <input
             type="month"
             className="input"
@@ -103,7 +105,7 @@ export default function Reports() {
                 setRange({ start: daysAgoISO(n - 1), end: todayISO() })
               }
             >
-              Last {n} days
+              {t("reports.last_days", { n })}
             </button>
           ))}
         </div>
@@ -115,7 +117,7 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Wallet size={18} className="text-brand-600" />
-              <h2 className="font-semibold text-slate-900">Daily collections</h2>
+              <h2 className="font-semibold text-slate-900">{t("reports.daily_collections")}</h2>
             </div>
             <button
               className="btn-ghost !py-1 !text-xs"
@@ -125,14 +127,14 @@ export default function Reports() {
                 )
               }
             >
-              <Download size={12} /> CSV
+              <Download size={12} /> {t("reports.csv")}
             </button>
           </div>
           <div className="text-2xl font-semibold text-slate-900 mb-1">
             ₹ {dailyTotal.toLocaleString()}
           </div>
           <div className="text-xs text-slate-500 mb-3">
-            Total collected in range ({daily.length} days with payments)
+            {t("reports.daily_total_sub", { count: daily.length })}
           </div>
           <div className="max-h-56 overflow-y-auto border-t border-slate-100">
             <table className="w-full text-xs">
@@ -140,7 +142,7 @@ export default function Reports() {
                 {daily.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="text-center py-4 text-slate-400">
-                      No payments in range.
+                      {t("reports.no_payments_in_range")}
                     </td>
                   </tr>
                 ) : (
@@ -151,7 +153,7 @@ export default function Reports() {
                         ₹ {r.amount?.toLocaleString?.() ?? r.amount}
                       </td>
                       <td className="py-1.5 text-right text-slate-400 w-16">
-                        {r.count} pmts
+                        {r.count} {t("reports.payments_short")}
                       </td>
                     </tr>
                   ))
@@ -166,13 +168,13 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingUp size={18} className="text-emerald-600" />
-              <h2 className="font-semibold text-slate-900">Monthly revenue</h2>
+              <h2 className="font-semibold text-slate-900">{t("reports.monthly_revenue")}</h2>
             </div>
             <button
               className="btn-ghost !py-1 !text-xs"
               onClick={() => dl(`/api/reports/monthly-revenue.csv?month=${month}`)}
             >
-              <Download size={12} /> CSV
+              <Download size={12} /> {t("reports.csv")}
             </button>
           </div>
           {monthly ? (
@@ -181,23 +183,23 @@ export default function Reports() {
                 ₹ {(monthly.total ?? 0).toLocaleString()}
               </div>
               <div className="text-xs text-slate-500 mb-4">
-                for {monthly.month} · {monthly.count ?? 0} payments
+                {t("reports.month_for", { month: monthly.month, count: monthly.count ?? 0 })}
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
-                {["cash", "upi", "card"].map((k) => (
+                {(["cash", "upi", "card"] as const).map((k) => (
                   <div key={k}>
                     <div className="text-lg font-semibold text-slate-900 tabular-nums">
                       ₹ {(monthly.by_method?.[k] ?? 0).toLocaleString()}
                     </div>
                     <div className="text-[11px] uppercase text-slate-500">
-                      {k}
+                      {t(`idetail.method.${k}`)}
                     </div>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <div className="text-sm text-slate-500 py-4">No data.</div>
+            <div className="text-sm text-slate-500 py-4">{t("reports.no_data")}</div>
           )}
         </div>
 
@@ -206,20 +208,20 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Clock size={18} className="text-rose-600" />
-              <h2 className="font-semibold text-slate-900">Pending dues</h2>
+              <h2 className="font-semibold text-slate-900">{t("reports.pending_dues")}</h2>
             </div>
             <button
               className="btn-ghost !py-1 !text-xs"
               onClick={() => dl(`/api/reports/pending-dues.csv`)}
             >
-              <Download size={12} /> CSV
+              <Download size={12} /> {t("reports.csv")}
             </button>
           </div>
           <div className="text-2xl font-semibold text-slate-900 mb-1">
             ₹ {pendingTotal.toLocaleString()}
           </div>
           <div className="text-xs text-slate-500 mb-3">
-            across {pending.length} invoices
+            {t("reports.across_invoices", { count: pending.length })}
           </div>
           <div className="max-h-56 overflow-y-auto">
             <table className="w-full text-xs">
@@ -227,7 +229,7 @@ export default function Reports() {
                 {pending.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="text-center py-4 text-slate-400">
-                      No pending invoices. 🎉
+                      {t("reports.no_pending")}
                     </td>
                   </tr>
                 ) : (
@@ -258,7 +260,7 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Stethoscope size={18} className="text-violet-600" />
-              <h2 className="font-semibold text-slate-900">Top procedures</h2>
+              <h2 className="font-semibold text-slate-900">{t("reports.top_procedures")}</h2>
             </div>
             <button
               className="btn-ghost !py-1 !text-xs"
@@ -268,23 +270,23 @@ export default function Reports() {
                 )
               }
             >
-              <Download size={12} /> CSV
+              <Download size={12} /> {t("reports.csv")}
             </button>
           </div>
           <div className="max-h-64 overflow-y-auto">
             <table className="w-full text-xs">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="text-left py-1">Procedure</th>
+                  <th className="text-left py-1">{t("reports.col.procedure")}</th>
                   <th className="text-right py-1 w-12">#</th>
-                  <th className="text-right py-1 w-24">Revenue</th>
+                  <th className="text-right py-1 w-24">{t("reports.col.revenue")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {top.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="text-center py-4 text-slate-400">
-                      No treatments in range.
+                      {t("reports.no_treatments")}
                     </td>
                   </tr>
                 ) : (

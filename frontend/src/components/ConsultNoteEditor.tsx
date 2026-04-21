@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
-  Save, X, Printer, Plus, Trash2, PillBottle,
+  Save, X, Plus, Trash2, PillBottle,
   Paperclip, Image as ImageIcon, FileText, Download, Upload,
 } from "lucide-react";
 import {
@@ -12,6 +12,7 @@ import {
   parsePrescriptionItems,
   uploadAttachment,
 } from "../api";
+import { useI18n } from "../i18n/I18nContext";
 
 interface Props {
   patientId: number;
@@ -42,6 +43,7 @@ export default function ConsultNoteEditor({
   onSaved,
   onCancel,
 }: Props) {
+  const { t } = useI18n();
   const [form, setForm] = useState<Partial<ConsultationNote>>(() => ({
     chief_complaint: existing?.chief_complaint || "",
     diagnosis: existing?.diagnosis || "",
@@ -110,7 +112,7 @@ export default function ConsultNoteEditor({
           ...payload,
         });
       }
-      toast.success("Note saved");
+      toast.success(t("cne.note_saved"));
       onSaved?.(saved);
     } catch (e: any) {
       toast.error(e.message);
@@ -131,13 +133,9 @@ export default function ConsultNoteEditor({
     setItems((p) => p.filter((_, idx) => idx !== i));
   }
 
-  // NB: we don't call window.open() from the click handler because
-  // pywebview (our desktop shell) blocks JS-triggered popups. Anchor
-  // tags with target="_blank" are routed to the system browser instead,
-  // so we render the Print / PDF controls as <a> elements further down.
-  const printableUrl = existing?.id
-    ? `/api/consultation-notes/${existing.id}/prescription`
-    : "";
+  // PDF is exposed as an anchor tag so pywebview routes it to the system
+  // PDF viewer (where a Print button already exists — no need to duplicate
+  // a separate "Print Rx" button here).
   const pdfUrl = existing?.id
     ? `/api/consultation-notes/${existing.id}/prescription.pdf`
     : "";
@@ -151,7 +149,7 @@ export default function ConsultNoteEditor({
   async function onFilesPicked(files: FileList | null) {
     if (!files || files.length === 0) return;
     if (!existing?.id) {
-      toast.error("Save the note first — files attach to a stored note.");
+      toast.error(t("cne.save_first_attach"));
       return;
     }
     setUploading(true);
@@ -166,11 +164,11 @@ export default function ConsultNoteEditor({
       setAttachments((prev) => [...prev, ...uploaded]);
       toast.success(
         uploaded.length === 1
-          ? "Attachment uploaded"
-          : `${uploaded.length} attachments uploaded`,
+          ? t("cne.attachment_uploaded")
+          : t("cne.attachments_uploaded", { count: uploaded.length }),
       );
     } catch (e: any) {
-      toast.error(e.message || "Upload failed");
+      toast.error(e.message || t("cne.upload_failed"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -178,31 +176,31 @@ export default function ConsultNoteEditor({
   }
 
   async function removeAttachment(aid: number) {
-    if (!confirm("Remove this attachment?")) return;
+    if (!confirm(t("cne.confirm_remove_attachment"))) return;
     try {
       await api.del(`/api/attachments/${aid}`);
       setAttachments((prev) => prev.filter((a) => a.id !== aid));
     } catch (e: any) {
-      toast.error(e.message || "Could not remove attachment");
+      toast.error(e.message || t("cne.remove_attachment_failed"));
     }
   }
 
   return (
     <div className="space-y-3">
       <div>
-        <label className="label">Chief complaint</label>
+        <label className="label">{t("cne.chief_complaint")}</label>
         <input
           className="input"
           value={form.chief_complaint || ""}
           onChange={(e) =>
             setForm({ ...form, chief_complaint: e.target.value })
           }
-          placeholder="e.g. Lower back pain since 3 days"
+          placeholder={t("cne.chief_complaint_placeholder")}
         />
       </div>
       <div className="grid md:grid-cols-2 gap-3">
         <div>
-          <label className="label">Diagnosis / Findings</label>
+          <label className="label">{t("cne.diagnosis")}</label>
           <textarea
             className="textarea"
             rows={3}
@@ -211,7 +209,7 @@ export default function ConsultNoteEditor({
           />
         </div>
         <div>
-          <label className="label">Advice</label>
+          <label className="label">{t("cne.advice")}</label>
           <textarea
             className="textarea"
             rows={3}
@@ -219,7 +217,7 @@ export default function ConsultNoteEditor({
             onChange={(e) =>
               setForm({ ...form, treatment_advised: e.target.value })
             }
-            placeholder="Rest, hydration, follow-up in 1 week…"
+            placeholder={t("cne.advice_placeholder")}
           />
         </div>
       </div>
@@ -228,7 +226,7 @@ export default function ConsultNoteEditor({
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50 rounded-t-lg">
           <div className="flex items-center gap-2 text-slate-700 font-medium text-sm">
             <PillBottle size={15} className="text-brand-600" />
-            Prescription (Rx)
+            {t("cne.rx_header")}
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -236,37 +234,26 @@ export default function ConsultNoteEditor({
               type="button"
               onClick={addItem}
             >
-              <Plus size={12} /> Add medicine
+              <Plus size={12} /> {t("cne.add_medicine")}
             </button>
             {existing?.id ? (
-              <>
-                <a
-                  className="btn-ghost text-xs !py-1"
-                  href={printableUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Open printable Rx"
-                >
-                  <Printer size={12} /> Print
-                </a>
-                <a
-                  className="btn-ghost text-xs !py-1"
-                  href={pdfUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Download Rx as PDF"
-                >
-                  <FileText size={12} /> PDF
-                </a>
-              </>
+              <a
+                className="btn-ghost text-xs !py-1"
+                href={pdfUrl}
+                target="_blank"
+                rel="noreferrer"
+                title={t("cne.pdf_title")}
+              >
+                <FileText size={12} /> {t("cne.pdf")}
+              </a>
             ) : (
               <button
                 className="btn-ghost text-xs !py-1"
                 type="button"
                 disabled
-                title="Save the note before printing"
+                title={t("cne.pdf_disabled_title")}
               >
-                <Printer size={12} /> Print
+                <FileText size={12} /> {t("cne.pdf")}
               </button>
             )}
           </div>
@@ -274,7 +261,7 @@ export default function ConsultNoteEditor({
 
         {items.length === 0 ? (
           <div className="text-xs text-slate-500 px-4 py-6 text-center">
-            No medicines yet. Click "Add medicine" to write the prescription.
+            {t("cne.no_meds")}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -285,13 +272,13 @@ export default function ConsultNoteEditor({
               >
                 <input
                   className="input !py-1 col-span-4"
-                  placeholder="Drug (e.g. Paracetamol)"
+                  placeholder={t("cne.drug_placeholder")}
                   value={it.drug}
                   onChange={(e) => updateItem(idx, { drug: e.target.value })}
                 />
                 <input
                   className="input !py-1 col-span-2"
-                  placeholder="Strength"
+                  placeholder={t("cne.strength_placeholder")}
                   value={it.strength || ""}
                   onChange={(e) =>
                     updateItem(idx, { strength: e.target.value })
@@ -299,7 +286,7 @@ export default function ConsultNoteEditor({
                 />
                 <input
                   className="input !py-1 col-span-2"
-                  placeholder="Frequency (TDS)"
+                  placeholder={t("cne.frequency_placeholder")}
                   value={it.frequency || ""}
                   onChange={(e) =>
                     updateItem(idx, { frequency: e.target.value })
@@ -307,7 +294,7 @@ export default function ConsultNoteEditor({
                 />
                 <input
                   className="input !py-1 col-span-2"
-                  placeholder="Duration (5 days)"
+                  placeholder={t("cne.duration_placeholder")}
                   value={it.duration || ""}
                   onChange={(e) =>
                     updateItem(idx, { duration: e.target.value })
@@ -315,7 +302,7 @@ export default function ConsultNoteEditor({
                 />
                 <input
                   className="input !py-1 col-span-1"
-                  placeholder="Notes"
+                  placeholder={t("cne.notes_placeholder")}
                   value={it.instructions || ""}
                   onChange={(e) =>
                     updateItem(idx, { instructions: e.target.value })
@@ -325,7 +312,7 @@ export default function ConsultNoteEditor({
                   className="text-slate-400 hover:text-rose-600 mt-1 col-span-1 justify-self-end"
                   type="button"
                   onClick={() => removeItem(idx)}
-                  aria-label="Remove row"
+                  aria-label={t("cne.remove_row")}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -335,11 +322,11 @@ export default function ConsultNoteEditor({
         )}
 
         <div className="px-3 pb-3 pt-1">
-          <label className="label text-xs">Rx-specific notes</label>
+          <label className="label text-xs">{t("cne.rx_notes")}</label>
           <textarea
             className="textarea !py-1 text-sm"
             rows={2}
-            placeholder="e.g. Avoid dairy for 48 hrs; review if fever persists"
+            placeholder={t("cne.rx_notes_placeholder")}
             value={form.prescription_notes || ""}
             onChange={(e) =>
               setForm({ ...form, prescription_notes: e.target.value })
@@ -355,7 +342,7 @@ export default function ConsultNoteEditor({
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50 rounded-t-lg">
           <div className="flex items-center gap-2 text-slate-700 font-medium text-sm">
             <Paperclip size={15} className="text-brand-600" />
-            Reports & attachments
+            {t("cne.attachments")}
           </div>
           <div className="flex items-center gap-1.5">
             <input
@@ -400,23 +387,23 @@ export default function ConsultNoteEditor({
               disabled={!existing?.id || uploading}
               title={
                 existing?.id
-                  ? "Attach images, PDFs or documents"
-                  : "Save the note before uploading"
+                  ? t("cne.upload_title")
+                  : t("cne.upload_disabled_title")
               }
             >
               <Upload size={12} />{" "}
-              {uploading ? "Uploading…" : "Upload"}
+              {uploading ? t("cne.uploading") : t("cne.upload")}
             </button>
           </div>
         </div>
 
         {!existing?.id ? (
           <div className="text-xs text-slate-500 px-4 py-6 text-center">
-            Save the note first to attach reports or photos.
+            {t("cne.save_first")}
           </div>
         ) : attachments.length === 0 ? (
           <div className="text-xs text-slate-500 px-4 py-6 text-center">
-            No attachments yet. Upload lab reports, X-rays, ECGs or photos.
+            {t("cne.no_attachments")}
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -432,8 +419,6 @@ export default function ConsultNoteEditor({
                   className="flex items-center gap-3 px-3 py-2 text-sm"
                 >
                   {a.kind === "image" && a.download_url ? (
-                    // Tiny thumbnail for images so the doctor can eyeball
-                    // the right report without opening each file.
                     <img
                       src={a.download_url}
                       alt={a.filename}
@@ -458,7 +443,7 @@ export default function ConsultNoteEditor({
                       target="_blank"
                       rel="noopener"
                       className="text-slate-500 hover:text-brand-700"
-                      title="Open / download"
+                      title={t("cne.attach_tooltip")}
                     >
                       <Download size={16} />
                     </a>
@@ -467,7 +452,7 @@ export default function ConsultNoteEditor({
                     className="text-slate-400 hover:text-rose-600"
                     type="button"
                     onClick={() => removeAttachment(a.id)}
-                    aria-label="Remove attachment"
+                    aria-label={t("cne.remove_attachment")}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -479,7 +464,7 @@ export default function ConsultNoteEditor({
       </div>
 
       <div>
-        <label className="label">Additional visit notes</label>
+        <label className="label">{t("cne.additional_notes")}</label>
         <textarea
           className="textarea"
           rows={2}
@@ -490,7 +475,7 @@ export default function ConsultNoteEditor({
       <div className="flex justify-end gap-2 pt-2">
         {onCancel && (
           <button className="btn-ghost" onClick={onCancel} type="button">
-            <X size={14} /> Cancel
+            <X size={14} /> {t("cne.cancel")}
           </button>
         )}
         <button
@@ -499,7 +484,7 @@ export default function ConsultNoteEditor({
           type="button"
           disabled={saving}
         >
-          <Save size={14} /> {existing?.id ? "Save changes" : "Save note"}
+          <Save size={14} /> {existing?.id ? t("cne.save_changes") : t("cne.save_note")}
         </button>
       </div>
     </div>

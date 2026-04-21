@@ -21,6 +21,8 @@ import {
   DoctorAvailability,
   Room,
   AuditEntry,
+  DOCTOR_CATEGORIES,
+  doctorCategoryLabel,
 } from "../api";
 import PageHeader from "../components/PageHeader";
 import { useI18n } from "../i18n/I18nContext";
@@ -35,13 +37,21 @@ interface SystemInfo {
 }
 
 type Tab = "profile" | "availability" | "rooms" | "activity";
-const TABS: { id: Tab; label: string; icon: any }[] = [
-  { id: "profile", label: "Clinic & doctor", icon: UserCircle2 },
-  { id: "availability", label: "Availability", icon: Clock },
-  { id: "rooms", label: "Rooms / Chairs", icon: DoorOpen },
-  { id: "activity", label: "Activity log", icon: Activity },
+const TAB_DEFS: { id: Tab; labelKey: string; icon: any }[] = [
+  { id: "profile", labelKey: "settings.tab.profile", icon: UserCircle2 },
+  { id: "availability", labelKey: "settings.tab.availability", icon: Clock },
+  { id: "rooms", labelKey: "settings.tab.rooms", icon: DoorOpen },
+  { id: "activity", labelKey: "settings.tab.activity", icon: Activity },
 ];
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_KEYS = [
+  "settings.day.mon",
+  "settings.day.tue",
+  "settings.day.wed",
+  "settings.day.thu",
+  "settings.day.fri",
+  "settings.day.sat",
+  "settings.day.sun",
+];
 
 export default function SettingsPage() {
   const { t } = useI18n();
@@ -108,7 +118,7 @@ export default function SettingsPage() {
   }
 
   async function deleteRoom(room: Room) {
-    if (!confirm(`Remove ${room.name}?`)) return;
+    if (!confirm(t("settings.rooms.confirm_remove", { name: room.name }))) return;
     await api.del(`/api/rooms/${room.id}`);
     loadRooms();
   }
@@ -128,6 +138,7 @@ export default function SettingsPage() {
         clinic_email: form.clinic_email || null,
         clinic_gstin: form.clinic_gstin || null,
         specialization: form.specialization || null,
+        doctor_category: form.doctor_category || null,
       });
       setForm(saved);
       toast.success(t("settings.saved"));
@@ -145,7 +156,7 @@ export default function SettingsPage() {
       <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
       <div className="flex gap-1 border-b border-slate-200 mb-5">
-        {TABS.map((tt) => {
+        {TAB_DEFS.map((tt) => {
           const Icon = tt.icon;
           return (
             <button
@@ -159,7 +170,7 @@ export default function SettingsPage() {
               )}
             >
               <Icon size={14} />
-              {tt.label}
+              {t(tt.labelKey as any)}
             </button>
           );
         })}
@@ -167,10 +178,11 @@ export default function SettingsPage() {
 
       {tab === "availability" && (
         <div className="card p-6">
-          <h2 className="font-semibold text-slate-900 mb-1">Weekly availability</h2>
+          <h2 className="font-semibold text-slate-900 mb-1">
+            {t("settings.availability.title")}
+          </h2>
           <p className="text-sm text-slate-500 mb-4">
-            Used in the calendar to show working hours and warn about bookings
-            outside your schedule.
+            {t("settings.availability.subtitle")}
           </p>
           <div className="space-y-2">
             {availability.map((a) => (
@@ -179,7 +191,7 @@ export default function SettingsPage() {
                 className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-lg p-2.5"
               >
                 <div className="col-span-2 font-medium text-slate-700">
-                  {DAY_NAMES[a.weekday]}
+                  {t(DAY_KEYS[a.weekday] as any)}
                 </div>
                 <label className="col-span-2 inline-flex items-center gap-2 text-sm">
                   <input
@@ -189,7 +201,7 @@ export default function SettingsPage() {
                       saveAvailability({ ...a, is_working: e.target.checked })
                     }
                   />
-                  Working
+                  {t("settings.availability.working")}
                 </label>
                 <input
                   type="time"
@@ -208,7 +220,7 @@ export default function SettingsPage() {
                   onBlur={() => saveAvailability(a)}
                 />
                 <div className="col-span-4 flex items-center gap-1 text-xs text-slate-500">
-                  Break:
+                  {t("settings.availability.break")}
                   <input
                     type="time"
                     className="input !py-1 !text-xs w-24"
@@ -235,26 +247,27 @@ export default function SettingsPage() {
 
       {tab === "rooms" && (
         <div className="card p-6">
-          <h2 className="font-semibold text-slate-900 mb-1">Rooms / Chairs</h2>
+          <h2 className="font-semibold text-slate-900 mb-1">
+            {t("settings.rooms.title")}
+          </h2>
           <p className="text-sm text-slate-500 mb-4">
-            Assign appointments to a specific room or dental chair so you can
-            filter the calendar by resource.
+            {t("settings.rooms.subtitle")}
           </p>
           <div className="flex gap-2 mb-4">
             <input
               className="input flex-1"
-              placeholder="New room name (e.g. Chair 1, Procedure room)"
+              placeholder={t("settings.rooms.placeholder")}
               value={newRoom}
               onChange={(e) => setNewRoom(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addRoom()}
             />
             <button className="btn-primary" onClick={addRoom}>
-              <Plus size={14} /> Add
+              <Plus size={14} /> {t("common.add")}
             </button>
           </div>
           {rooms.length === 0 ? (
             <div className="text-sm text-slate-500 text-center py-6">
-              No rooms configured.
+              {t("settings.rooms.empty")}
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -268,7 +281,7 @@ export default function SettingsPage() {
                     className="text-xs text-slate-500 hover:text-slate-800"
                     onClick={() => toggleRoom(r)}
                   >
-                    {r.active ? "Deactivate" : "Reactivate"}
+                    {r.active ? t("common.deactivate") : t("common.reactivate")}
                   </button>
                   <button
                     className="text-slate-400 hover:text-rose-600"
@@ -286,11 +299,13 @@ export default function SettingsPage() {
       {tab === "activity" && (
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="font-semibold text-slate-900">Activity log</h2>
+            <h2 className="font-semibold text-slate-900">
+              {t("settings.activity.title")}
+            </h2>
             <div className="flex items-center gap-2">
               <input
                 className="input !py-1 !text-sm"
-                placeholder="Filter by action (e.g. invoice.create)"
+                placeholder={t("settings.activity.filter_placeholder")}
                 value={auditFilter.action}
                 onChange={(e) => setAuditFilter((f) => ({ ...f, action: e.target.value }))}
               />
@@ -307,17 +322,17 @@ export default function SettingsPage() {
           </div>
           {audit.length === 0 ? (
             <div className="text-sm text-slate-500 text-center py-10">
-              No activity yet.
+              {t("settings.activity.empty")}
             </div>
           ) : (
             <div className="max-h-[640px] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="text-slate-500 text-xs">
                   <tr>
-                    <th className="text-left py-2">When</th>
-                    <th className="text-left py-2">Action</th>
-                    <th className="text-left py-2">Entity</th>
-                    <th className="text-left py-2">Summary</th>
+                    <th className="text-left py-2">{t("settings.activity.col.when")}</th>
+                    <th className="text-left py-2">{t("settings.activity.col.action")}</th>
+                    <th className="text-left py-2">{t("settings.activity.col.entity")}</th>
+                    <th className="text-left py-2">{t("settings.activity.col.summary")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -375,7 +390,7 @@ export default function SettingsPage() {
                 className="input"
                 value={form.doctor_name || ""}
                 onChange={(e) => setForm({ ...form, doctor_name: e.target.value })}
-                placeholder="e.g. Priya Sharma"
+                placeholder={t("settings.doctor_name_placeholder")}
               />
               <p className="text-xs text-slate-500 mt-1">{t("settings.doctor_name_help")}</p>
             </div>
@@ -387,9 +402,32 @@ export default function SettingsPage() {
                 onChange={(e) =>
                   setForm({ ...form, doctor_qualifications: e.target.value })
                 }
-                placeholder="MBBS, MD (Medicine)"
+                placeholder={t("settings.qualifications_placeholder")}
               />
               <p className="text-xs text-slate-500 mt-1">{t("settings.qualifications_help")}</p>
+            </div>
+            <div>
+              <label className="label" htmlFor="doctor-category-select">
+                {t("settings.practice_category")}
+              </label>
+              <select
+                id="doctor-category-select"
+                className="input"
+                value={form.doctor_category || ""}
+                onChange={(e) =>
+                  setForm({ ...form, doctor_category: e.target.value || null })
+                }
+              >
+                <option value="">{t("settings.practice_category_select")}</option>
+                {DOCTOR_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {doctorCategoryLabel(c)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 mt-1">
+                {t("settings.practice_category_help")}
+              </p>
             </div>
             <div>
               <label className="label">{t("settings.specialization")}</label>
@@ -398,7 +436,7 @@ export default function SettingsPage() {
                 list="specialization-options"
                 value={form.specialization || ""}
                 onChange={(e) => setForm({ ...form, specialization: e.target.value })}
-                placeholder="Dental / Gastroenterology / ..."
+                placeholder={t("settings.specialization_placeholder")}
               />
               <datalist id="specialization-options">
                 {categories.map((c) => (
@@ -432,7 +470,7 @@ export default function SettingsPage() {
                 onChange={(e) =>
                   setForm({ ...form, registration_number: e.target.value })
                 }
-                placeholder="12345"
+                placeholder={t("settings.reg_number_placeholder")}
               />
             </div>
             <div>
@@ -444,7 +482,7 @@ export default function SettingsPage() {
                 onChange={(e) =>
                   setForm({ ...form, registration_council: e.target.value })
                 }
-                placeholder="Delhi Medical Council"
+                placeholder={t("settings.reg_council_placeholder")}
               />
               <datalist id="council-options">
                 <option value="National Medical Commission (NMC)" />
@@ -508,7 +546,7 @@ export default function SettingsPage() {
                 type="email"
                 value={form.clinic_email || ""}
                 onChange={(e) => setForm({ ...form, clinic_email: e.target.value })}
-                placeholder="clinic@example.com"
+                placeholder={t("settings.clinic_email_placeholder")}
               />
             </div>
             <div>
@@ -517,7 +555,7 @@ export default function SettingsPage() {
                 className="input font-mono"
                 value={form.clinic_gstin || ""}
                 onChange={(e) => setForm({ ...form, clinic_gstin: e.target.value })}
-                placeholder="29AAAAA0000A1Z5"
+                placeholder={t("settings.clinic_gstin_placeholder")}
               />
             </div>
             <div className="md:col-span-2">

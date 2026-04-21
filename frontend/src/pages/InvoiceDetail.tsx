@@ -19,8 +19,10 @@ import { api, ConsultationNote, Invoice, PaymentMethod, Settings } from "../api"
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { format } from "date-fns";
+import { useI18n } from "../i18n/I18nContext";
 
 export default function InvoiceDetail() {
+  const { t } = useI18n();
   const { id } = useParams();
   const iid = Number(id);
   const [inv, setInv] = useState<Invoice | null>(null);
@@ -59,7 +61,7 @@ export default function InvoiceDetail() {
   async function addPayment(e: FormEvent) {
     e.preventDefault();
     const amt = Number(amount);
-    if (!amt || amt <= 0) return toast.error("Enter amount");
+    if (!amt || amt <= 0) return toast.error(t("idetail.enter_amount"));
     try {
       await api.post(`/api/invoices/${iid}/payments`, {
         amount: amt,
@@ -69,7 +71,7 @@ export default function InvoiceDetail() {
       });
       setAmount("");
       setReference("");
-      toast.success("Payment recorded");
+      toast.success(t("idetail.payment_recorded"));
       load();
     } catch (err: any) {
       toast.error(err.message);
@@ -77,7 +79,7 @@ export default function InvoiceDetail() {
   }
 
   async function deletePayment(pid: number) {
-    if (!confirm("Delete this payment?")) return;
+    if (!confirm(t("idetail.confirm_delete_payment"))) return;
     await api.del(`/api/payments/${pid}`);
     load();
   }
@@ -95,7 +97,7 @@ export default function InvoiceDetail() {
     settings?.registration_number?.trim()
   );
 
-  if (!inv) return <div className="p-8 text-slate-500">Loading...</div>;
+  if (!inv) return <div className="p-8 text-slate-500">{t("common.loading")}</div>;
   const balance = Math.round((inv.total - inv.paid) * 100) / 100;
   const balanceTone =
     balance > 0
@@ -104,7 +106,11 @@ export default function InvoiceDetail() {
       ? "text-amber-600"
       : "text-emerald-600";
   const balanceLabel =
-    balance > 0 ? "Balance due" : balance < 0 ? "Overpaid" : "Fully paid";
+    balance > 0
+      ? t("idetail.balance_due")
+      : balance < 0
+        ? t("idetail.overpaid")
+        : t("idetail.fully_paid");
 
   const quickAmounts = balance > 0
     ? [balance, Math.round(balance / 2), 100, 500, 1000].filter(
@@ -112,16 +118,19 @@ export default function InvoiceDetail() {
       )
     : [];
 
+  const methodLabel = (m: PaymentMethod) =>
+    m === "cash" ? t("idetail.method.cash") : m === "upi" ? t("idetail.method.upi") : t("idetail.method.card");
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <Link
         to="/invoices"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-3"
       >
-        <ArrowLeft size={14} /> Back to invoices
+        <ArrowLeft size={14} /> {t("idetail.back")}
       </Link>
       <PageHeader
-        title={`Invoice #${String(inv.id).padStart(5, "0")}`}
+        title={t("idetail.invoice_number", { id: String(inv.id).padStart(5, "0") })}
         subtitle={`${inv.patient_name} · ${format(new Date(inv.created_at), "dd MMM yyyy")}`}
         actions={
           <div className="flex gap-2 flex-wrap">
@@ -131,7 +140,7 @@ export default function InvoiceDetail() {
               rel="noreferrer"
               className="btn-primary"
             >
-              <Printer size={14} /> Print invoice
+              <Printer size={14} /> {t("idetail.print_invoice")}
             </a>
             <a
               href={`/api/invoices/${inv.id}/pdf`}
@@ -139,51 +148,45 @@ export default function InvoiceDetail() {
               rel="noreferrer"
               className="btn-outline"
             >
-              <FileText size={14} /> PDF
+              <FileText size={14} /> {t("idetail.pdf")}
             </a>
+            {/* Only expose the Rx PDF link (every PDF viewer already prints).
+                Duplicating a "Print Rx" button added noise without offering a
+                useful alternative path. */}
             {note ? (
               <>
-                <a
-                  href={`/api/consultation-notes/${note.id}/prescription`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn-outline"
-                  title="Open the printable prescription linked to this visit"
-                >
-                  <Printer size={14} /> Print Rx
-                </a>
                 <a
                   href={`/api/consultation-notes/${note.id}/prescription.pdf`}
                   target="_blank"
                   rel="noreferrer"
                   className="btn-outline"
-                  title="Download the prescription as a PDF"
+                  title={t("idetail.rx_pdf_title")}
                 >
-                  <FileText size={14} /> Rx PDF
+                  <FileText size={14} /> {t("idetail.rx_pdf")}
                 </a>
                 <Link
                   to={`/consultations?open=${note.id}`}
                   className="btn-outline"
-                  title="Open the full consultation note"
+                  title={t("idetail.view_consultation_title")}
                 >
-                  <PillBottle size={14} /> View consultation
+                  <PillBottle size={14} /> {t("idetail.view_consultation")}
                 </Link>
               </>
             ) : inv.appointment_id ? (
               <Link
                 to={`/patients/${inv.patient_id}?tab=visits&appointment=${inv.appointment_id}`}
                 className="btn-outline"
-                title="Open the visit to write the prescription"
+                title={t("idetail.add_rx_title")}
               >
-                <PillBottle size={14} /> Add Rx
+                <PillBottle size={14} /> {t("idetail.add_rx")}
               </Link>
             ) : (
               <Link
                 to={`/patients/${inv.patient_id}?tab=visits`}
                 className="btn-outline"
-                title="Open the patient's visit history to add a prescription"
+                title={t("idetail.add_rx_title_alt")}
               >
-                <PillBottle size={14} /> Add Rx
+                <PillBottle size={14} /> {t("idetail.add_rx")}
               </Link>
             )}
           </div>
@@ -194,19 +197,15 @@ export default function InvoiceDetail() {
         <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 flex items-start gap-3">
           <Stethoscope size={18} className="mt-0.5 shrink-0 text-amber-700" />
           <div>
-            <div className="font-semibold">
-              Your invoice is missing mandatory doctor details
-            </div>
+            <div className="font-semibold">{t("idetail.missing_doctor")}</div>
             <div className="mt-1 leading-relaxed">
-              Indian Medical Council regulations require your full name,
-              clinic name, and State Medical Council / NMC registration
-              number to appear on every invoice and prescription.
+              {t("idetail.missing_doctor_body")}
               {" "}
               <Link
                 to="/settings"
                 className="font-semibold underline underline-offset-2"
               >
-                Complete your profile →
+                {t("idetail.complete_profile")}
               </Link>
             </div>
           </div>
@@ -221,7 +220,7 @@ export default function InvoiceDetail() {
           <div className="flex items-start justify-between gap-6 flex-wrap">
             <div>
               <div className="text-2xl font-bold text-brand-700 leading-tight">
-                {settings?.clinic_name || "Your clinic name"}
+                {settings?.clinic_name || t("idetail.your_clinic_name")}
               </div>
               {settings?.doctor_name && (
                 <div className="mt-0.5 text-slate-800 font-medium">
@@ -242,7 +241,7 @@ export default function InvoiceDetail() {
                 </span>
               ) : (
                 <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200">
-                  Registration number missing
+                  {t("idetail.reg_missing")}
                 </span>
               )}
               {settings?.clinic_address && (
@@ -251,14 +250,14 @@ export default function InvoiceDetail() {
                 </div>
               )}
               <div className="text-sm text-slate-500">
-                {settings?.clinic_phone && <>Phone: {settings.clinic_phone} </>}
+                {settings?.clinic_phone && <>{t("idetail.phone_prefix")} {settings.clinic_phone} </>}
                 {settings?.clinic_phone && settings?.clinic_email && " · "}
-                {settings?.clinic_email && <>Email: {settings.clinic_email}</>}
+                {settings?.clinic_email && <>{t("idetail.email_prefix")} {settings.clinic_email}</>}
               </div>
             </div>
             <div className="text-right">
               <div className="text-[11px] uppercase tracking-widest text-slate-400 font-semibold">
-                Invoice
+                {t("idetail.invoice_label")}
               </div>
               <div className="text-xl font-bold text-brand-700 tabular-nums">
                 #{String(inv.id).padStart(5, "0")}
@@ -274,7 +273,7 @@ export default function InvoiceDetail() {
 
           <div className="mt-5 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
             <div className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">
-              Billed to
+              {t("idetail.billed_to")}
             </div>
             <div className="font-semibold text-slate-900">
               {inv.patient_name}
@@ -288,16 +287,16 @@ export default function InvoiceDetail() {
           {/* Line items */}
           <div className="card p-0 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <h2 className="font-semibold text-slate-900">Line items</h2>
+              <h2 className="font-semibold text-slate-900">{t("idetail.line_items")}</h2>
               <StatusBadge value={inv.status} />
             </div>
             <table className="w-full text-sm">
               <thead className="text-slate-500 bg-slate-50">
                 <tr>
-                  <th className="text-left font-medium py-2.5 px-5">Description</th>
-                  <th className="text-right font-medium py-2.5 px-2 w-16">Qty</th>
-                  <th className="text-right font-medium py-2.5 px-2 w-28">Unit</th>
-                  <th className="text-right font-medium py-2.5 px-5 w-32">Amount</th>
+                  <th className="text-left font-medium py-2.5 px-5">{t("idetail.col.description")}</th>
+                  <th className="text-right font-medium py-2.5 px-2 w-16">{t("idetail.col.qty")}</th>
+                  <th className="text-right font-medium py-2.5 px-2 w-28">{t("idetail.col.unit")}</th>
+                  <th className="text-right font-medium py-2.5 px-5 w-32">{t("idetail.col.amount")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -319,7 +318,7 @@ export default function InvoiceDetail() {
               <tfoot className="text-slate-700 bg-slate-50">
                 <tr>
                   <td colSpan={3} className="pt-3 px-5 text-right">
-                    Total
+                    {t("idetail.total")}
                   </td>
                   <td className="pt-3 px-5 text-right font-semibold tabular-nums">
                     ₹ {inv.total.toLocaleString()}
@@ -327,7 +326,7 @@ export default function InvoiceDetail() {
                 </tr>
                 <tr>
                   <td colSpan={3} className="px-5 text-right">
-                    Paid
+                    {t("idetail.paid")}
                   </td>
                   <td className="px-5 text-right tabular-nums">
                     ₹ {inv.paid.toLocaleString()}
@@ -353,20 +352,20 @@ export default function InvoiceDetail() {
           {/* Payments */}
           <div className="card p-0 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100">
-              <h2 className="font-semibold text-slate-900">Payments</h2>
+              <h2 className="font-semibold text-slate-900">{t("idetail.payments")}</h2>
             </div>
             {inv.payments.length === 0 ? (
               <div className="text-sm text-slate-500 py-10 text-center">
-                No payments yet.
+                {t("idetail.no_payments")}
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead className="text-slate-500 bg-slate-50">
                   <tr>
-                    <th className="text-left font-medium py-2.5 px-5">Date</th>
-                    <th className="text-left font-medium py-2.5 px-2">Method</th>
-                    <th className="text-left font-medium py-2.5 px-2">Reference</th>
-                    <th className="text-right font-medium py-2.5 px-2">Amount</th>
+                    <th className="text-left font-medium py-2.5 px-5">{t("pdetail.col.date")}</th>
+                    <th className="text-left font-medium py-2.5 px-2">{t("idetail.col.method")}</th>
+                    <th className="text-left font-medium py-2.5 px-2">{t("idetail.col.reference")}</th>
+                    <th className="text-right font-medium py-2.5 px-2">{t("idetail.col.amount")}</th>
                     <th className="py-2.5 px-5" />
                   </tr>
                 </thead>
@@ -377,7 +376,7 @@ export default function InvoiceDetail() {
                         {format(new Date(p.paid_on), "dd MMM yyyy, p")}
                       </td>
                       <td className="py-2.5 px-2 uppercase text-slate-700">
-                        {p.method}
+                        {methodLabel(p.method as PaymentMethod)}
                       </td>
                       <td className="py-2.5 px-2 text-slate-500">
                         {p.reference || "—"}
@@ -389,7 +388,7 @@ export default function InvoiceDetail() {
                         <button
                           className="text-slate-400 hover:text-rose-600"
                           onClick={() => deletePayment(p.id)}
-                          aria-label="Delete payment"
+                          aria-label={t("idetail.confirm_delete_payment")}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -405,13 +404,13 @@ export default function InvoiceDetail() {
         <div className="card p-5 h-fit sticky top-4">
           <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
             <CreditCard size={16} className="text-brand-600" />
-            Record payment
+            {t("idetail.record_payment")}
           </h2>
           <form onSubmit={addPayment} className="space-y-3">
             <div>
               <label className="label flex items-center gap-1.5">
                 <IndianRupee size={13} />
-                Amount
+                {t("idetail.amount")}
               </label>
               <input
                 className="input text-lg font-semibold"
@@ -440,7 +439,7 @@ export default function InvoiceDetail() {
             </div>
 
             <div>
-              <label className="label">Method</label>
+              <label className="label">{t("idetail.method")}</label>
               <div className="grid grid-cols-3 gap-1.5">
                 {(["cash", "upi", "card"] as PaymentMethod[]).map((m) => {
                   const Icon =
@@ -459,7 +458,7 @@ export default function InvoiceDetail() {
                       }
                     >
                       <Icon size={16} />
-                      {m}
+                      {methodLabel(m)}
                     </button>
                   );
                 })}
@@ -469,7 +468,7 @@ export default function InvoiceDetail() {
             <div>
               <label className="label flex items-center gap-1.5">
                 <CalendarIcon size={13} />
-                Payment date
+                {t("idetail.payment_date")}
               </label>
               <input
                 className="input"
@@ -478,22 +477,22 @@ export default function InvoiceDetail() {
                 onChange={(e) => setPaidOn(e.target.value)}
               />
               <p className="text-[11px] text-slate-500 mt-1">
-                Defaults to today — change it for backdated / partial payments.
+                {t("idetail.payment_date_help")}
               </p>
             </div>
 
             <div>
-              <label className="label">Reference (optional)</label>
+              <label className="label">{t("idetail.reference_optional")}</label>
               <input
                 className="input"
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
-                placeholder="UPI txn id / card last 4..."
+                placeholder={t("idetail.reference_placeholder")}
               />
             </div>
 
             <button className="btn-primary w-full justify-center" type="submit">
-              <Plus size={14} /> Record payment
+              <Plus size={14} /> {t("idetail.record_payment")}
             </button>
           </form>
         </div>

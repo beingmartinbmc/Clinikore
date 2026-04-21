@@ -752,7 +752,7 @@ describe("InvoiceDetail", () => {
     expect(posted.method).toBe("upi");
 
     // Delete the existing payment.
-    const del = screen.getByRole("button", { name: /delete payment/i });
+    const del = screen.getByRole("button", { name: /delete this payment/i });
     await userEvent.click(del);
   });
 

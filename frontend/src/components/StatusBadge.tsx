@@ -23,9 +23,14 @@ const labelKey: Record<string, string> = {
   scheduled: "appt.scheduled",
   completed: "appt.completed",
   cancelled: "appt.cancelled",
+  no_show: "appt.no_show",
   paid: "invoices.status.paid",
   partial: "invoices.status.partial",
   unpaid: "invoices.status.unpaid",
+  new: "lifecycle.new",
+  consulted: "lifecycle.consulted",
+  planned: "lifecycle.planned",
+  in_progress: "lifecycle.in_progress",
 };
 
 export default function StatusBadge({ value }: { value: string }) {

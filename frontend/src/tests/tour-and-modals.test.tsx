@@ -282,7 +282,9 @@ describe("OnboardingModal", () => {
       routes: {
         "/api/settings": {
           id: 1, doctor_name: "Dr. A", clinic_name: "Clinic",
-          registration_number: "DMC/1234", updated_at: new Date().toISOString(),
+          registration_number: "DMC/1234",
+          doctor_category: "general",
+          updated_at: new Date().toISOString(),
         },
       },
     });
@@ -320,6 +322,10 @@ describe("OnboardingModal", () => {
     await userEvent.type(name, "Dr Test");
     await userEvent.type(regNo, "DMC/9999");
     await userEvent.type(clinic, "Test Clinic");
+    // Doctor category is mandatory too — pick General (no relevance filter).
+    await userEvent.click(
+      screen.getByRole("radio", { name: /no relevance filter/i }),
+    );
 
     const save = screen.getByRole("button", { name: /Save.*continue/i });
     await userEvent.click(save);
@@ -329,6 +335,7 @@ describe("OnboardingModal", () => {
     expect(body.doctor_name).toBe("Dr Test");
     expect(body.clinic_name).toBe("Test Clinic");
     expect(body.registration_number).toBe("DMC/9999");
+    expect(body.doctor_category).toBe("general");
   });
 
   it("shows an error toast when save fails", async () => {
@@ -350,6 +357,9 @@ describe("OnboardingModal", () => {
     await userEvent.type(screen.getByPlaceholderText(/Priya Sharma/i), "A");
     await userEvent.type(screen.getByPlaceholderText(/12345/i), "R");
     await userEvent.type(screen.getByPlaceholderText(/Smile Dental Care/i), "C");
+    await userEvent.click(
+      screen.getByRole("radio", { name: /no relevance filter/i }),
+    );
     await userEvent.click(screen.getByRole("button", { name: /Save.*continue/i }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
@@ -406,7 +416,7 @@ describe("OnboardingModal", () => {
       "Delhi Medical Council",
     );
     await userEvent.type(
-      screen.getByPlaceholderText(/Dental Surgeon/i),
+      screen.getByPlaceholderText(/Dental Surgeon|Consultant Paediatrician/i),
       "Dentist",
     );
     await userEvent.type(
@@ -425,6 +435,12 @@ describe("OnboardingModal", () => {
       screen.getByPlaceholderText(/MG Road/i),
       "12 MG Road, Bengaluru",
     );
+    // Pick the Dental category card — required to submit. The button's
+    // accessible name includes the label + description paragraph, so we
+    // match a distinctive phrase from the Dental card copy.
+    await userEvent.click(
+      screen.getByRole("radio", { name: /Unlocks the odontogram/i }),
+    );
     await userEvent.click(
       screen.getByRole("button", { name: /Save.*continue/i }),
     );
@@ -432,6 +448,7 @@ describe("OnboardingModal", () => {
     expect(putBody.doctor_qualifications).toBe("MBBS");
     expect(putBody.registration_council).toBe("Delhi Medical Council");
     expect(putBody.specialization).toBe("Dentist");
+    expect(putBody.doctor_category).toBe("dental");
     expect(putBody.clinic_phone).toBe("+911234567890");
     expect(putBody.clinic_email).toBe("hi@clinic.test");
     expect(putBody.clinic_address).toBe("12 MG Road, Bengaluru");
@@ -580,13 +597,12 @@ describe("ConsultNoteEditor", () => {
     expect(body.appointment_id).toBe(5);
   });
 
-  it("print button is disabled for unsaved notes and toasts an error", async () => {
+  it("does not expose a prescription PDF link for unsaved notes", async () => {
     renderApp(<ConsultNoteEditor patientId={1} />);
-    const printBtn = screen.getByRole("button", { name: /print/i });
-    expect(printBtn).toBeDisabled();
+    expect(screen.queryByRole("link", { name: /pdf/i })).toBeNull();
   });
 
-  it("exposes a printable Rx link and a PDF link when the note exists", async () => {
+  it("exposes a prescription PDF link when the note exists", async () => {
     const existing = {
       id: 77, patient_id: 1,
       created_at: "x", updated_at: "x",
@@ -594,18 +610,13 @@ describe("ConsultNoteEditor", () => {
     renderApp(
       <ConsultNoteEditor patientId={1} existing={existing} />,
     );
-    const printLink = screen.getByRole("link", { name: /print/i });
-    expect(printLink).toHaveAttribute(
-      "href",
-      "/api/consultation-notes/77/prescription",
-    );
-    expect(printLink).toHaveAttribute("target", "_blank");
-
     const pdfLink = screen.getByRole("link", { name: /pdf/i });
     expect(pdfLink).toHaveAttribute(
       "href",
       "/api/consultation-notes/77/prescription.pdf",
     );
+    expect(pdfLink).toHaveAttribute("target", "_blank");
+    expect(screen.queryByRole("button", { name: /^print$/i })).toBeNull();
   });
 
   it("loads and renders attachments, downloads, and removes with confirm", async () => {

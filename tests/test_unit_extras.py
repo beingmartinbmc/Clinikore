@@ -359,6 +359,67 @@ def test_prescription_html_no_rx_no_advised():
     assert "No Rx" in html
 
 
+def test_prescription_html_shows_dob_in_patient_banner():
+    from datetime import date
+    p = Patient(
+        id=4, name="DOB Patient",
+        date_of_birth=date(1985, 6, 10),
+        phone="+91 90000 00000",
+    )
+    html = services.render_prescription_html(
+        p, note_data={"chief_complaint": "Checkup"},
+    )
+    assert "DOB: 10 Jun 1985" in html
+    # Age is computed from DOB on render so we don't hard-code a year.
+    import re
+    assert re.search(r"DOB: 10 Jun 1985 \(\d{2}y\)", html)
+
+
+def test_prescription_pdf_metadata_has_title_and_author():
+    p = Patient(id=5, name="Meta Patient", age=40)
+    settings = Settings(
+        id=1, doctor_name="Dr Anon", registration_number="DMC/77777",
+        clinic_name="Meta Clinic",
+    )
+    pdf = services.render_prescription_pdf(
+        p, note_data={"chief_complaint": "Headache"}, settings=settings,
+    )
+    assert pdf.startswith(b"%PDF-")
+    # Title + Author are the two fields PDF viewers surface as the
+    # tab/window title and the "Author" field in Properties. Without
+    # these the viewer falls back to "(anonymous)".
+    assert b"/Title" in pdf
+    assert b"/Author" in pdf
+    assert b"Prescription" in pdf
+    assert b"Meta Patient" in pdf
+
+
+def test_prescription_pdf_with_dob_differs_from_plain_pdf():
+    """reportlab compresses page streams so we can't grep for the DOB
+    string in the raw bytes. Instead we verify the helper is wired in
+    by rendering the same note twice — once with DOB, once without —
+    and asserting the outputs differ.
+
+    The HTML test above already proves the DOB string appears verbatim
+    in the patient banner; the two renderers share the same helper
+    (``_patient_identity_bits``), so if the HTML is right the PDF
+    patient banner must be too."""
+    from datetime import date
+    base = Patient(id=6, name="DOB PDF")
+    with_dob = Patient(
+        id=6, name="DOB PDF", date_of_birth=date(2001, 12, 1),
+    )
+    plain = services.render_prescription_pdf(
+        base, note_data={"chief_complaint": "Cough"},
+    )
+    with_banner = services.render_prescription_pdf(
+        with_dob, note_data={"chief_complaint": "Cough"},
+    )
+    assert plain.startswith(b"%PDF-")
+    assert with_banner.startswith(b"%PDF-")
+    assert plain != with_banner
+
+
 def test_clinic_header_registration_number_only():
     """A doctor who supplies a registration number but not a council
     (edge case) still gets a Reg. No. line."""

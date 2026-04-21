@@ -167,15 +167,23 @@ describe("settingsComplete", () => {
 
   it("is false when any required field is missing or blank", () => {
     expect(settingsComplete({ doctor_name: "A", clinic_name: "B" })).toBe(false);
-    expect(settingsComplete({ doctor_name: "  ", clinic_name: "B", registration_number: "X" })).toBe(false);
-    expect(settingsComplete({ doctor_name: "A", clinic_name: "", registration_number: "X" })).toBe(false);
+    expect(settingsComplete({ doctor_name: "  ", clinic_name: "B", registration_number: "X", doctor_category: "general" })).toBe(false);
+    expect(settingsComplete({ doctor_name: "A", clinic_name: "", registration_number: "X", doctor_category: "general" })).toBe(false);
+    // New requirement: doctor_category is mandatory so the specialty-aware
+    // patient filter knows what to show on first launch.
+    expect(settingsComplete({
+      doctor_name: "A",
+      clinic_name: "B",
+      registration_number: "X",
+    })).toBe(false);
   });
 
-  it("is true when all three required fields are non-blank", () => {
+  it("is true when all required fields are non-blank (incl. doctor_category)", () => {
     expect(settingsComplete({
       doctor_name: "Dr A",
       clinic_name: "Clinic X",
       registration_number: "DMC/1234",
+      doctor_category: "general",
     })).toBe(true);
   });
 });

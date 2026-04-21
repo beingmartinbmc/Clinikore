@@ -21,9 +21,58 @@ from typing import Optional
 
 import uvicorn
 
+APP_NAME = "Clinikore"
+
+
+def _set_app_identity() -> None:
+    """Make the running process show up as "Clinikore" instead of
+    "Python" in the OS UI and process listings.
+
+    Does three things, all best-effort:
+
+    1. ``setproctitle`` (if installed) fixes the name in ``ps``,
+       ``top``, ``htop``, Activity Monitor's *Process Name* column,
+       and the Windows Task Manager.
+    2. On macOS, overriding the ``CFBundleName`` / ``CFBundleDisplayName``
+       keys of the main bundle fixes the name in the Dock, the app
+       menu bar, and the "About" dialog. pywebview requires PyObjC
+       anyway so ``Foundation`` is available at runtime.
+    3. On Linux, setting ``WM_CLASS`` via the Qt app instance is done
+       inside pywebview once the window opens — nothing to do here.
+
+    All of this is a no-op when packaged via PyInstaller with
+    ``--name Clinikore`` because the binary itself is already called
+    the right thing."""
+    try:
+        import setproctitle  # type: ignore
+        setproctitle.setproctitle(APP_NAME)
+    except ImportError:
+        pass  # optional dep
+    except Exception:  # pragma: no cover - defensive
+        pass
+
+    if sys.platform == "darwin":
+        try:
+            from Foundation import NSBundle  # type: ignore
+            bundle = NSBundle.mainBundle()
+            info = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+            if info is not None:
+                info["CFBundleName"] = APP_NAME
+                info["CFBundleDisplayName"] = APP_NAME
+        except Exception:
+            # PyObjC may be missing in stripped dev envs; the Dock
+            # will fall back to "Python" but the app still works.
+            pass
+
+
+# Rename the process BEFORE we import anything heavy so the OS picks up
+# the new name as early as possible (Activity Monitor polls the name
+# within a second of launch).
+_set_app_identity()
+
 # Configure logging FIRST (before importing backend.main, so its module-level
 # loggers pick up the right handlers).
-from backend.logging_setup import configure_logging
+from backend.logging_setup import configure_logging  # noqa: E402
 LOG_DIR = configure_logging()
 
 from backend.main import app  # noqa: E402  (deliberate ordering)

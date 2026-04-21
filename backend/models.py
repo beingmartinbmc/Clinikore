@@ -76,9 +76,25 @@ class PatientLifecycle(str, Enum):
 
 
 # ---------- Patient ----------
+class Gender(str, Enum):
+    """Patient gender. Kept optional so existing records without it still work.
+    Used by specialty-aware patient filtering (e.g. a Gynaecologist only sees
+    female patients, an Andrologist only male)."""
+    male = "male"
+    female = "female"
+    other = "other"
+
+
 class PatientBase(SQLModel):
     name: str
+    # Legacy `age` kept for back-compat with records entered before DOB was a
+    # field. New records should prefer `date_of_birth` and let the UI compute
+    # the current age from it — ages change, birth dates don't.
     age: Optional[int] = None
+    # ISO date (YYYY-MM-DD). Source of truth for age / pediatric / geriatric
+    # relevance filters.
+    date_of_birth: Optional[date] = None
+    gender: Optional[Gender] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     medical_history: Optional[str] = None
@@ -550,6 +566,13 @@ class SettingsBase(SQLModel):
     clinic_email: Optional[str] = None
     clinic_gstin: Optional[str] = None           # optional for tax-invoice setups
     specialization: Optional[str] = None  # default category for new procedures
+    # Structured clinical category — a short, known enum-like value captured
+    # during onboarding. Drives "only show patients relevant to my practice"
+    # filtering on the patient list and the Dashboard. Free-text for forward
+    # compatibility but the UI exposes a fixed set:
+    #   general | dental | pediatric | geriatric | gynecology | andrology
+    #   | cardiology | dermatology | ent | orthopedic | psychiatry | ophthalmology
+    doctor_category: Optional[str] = None
     locale: Optional[str] = None           # "en" / "hi" — persisted preference
     onboarded_at: Optional[datetime] = None
 

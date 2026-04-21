@@ -257,6 +257,52 @@ def test_invoice_pdf_includes_rx_when_note_provided():
 
 
 # ---------------------------------------------------------------------------
+# PDF metadata — without /Title the PDF viewer shows "(anonymous)" in the
+# tab. /Author is shown in Acrobat's properties pane and in Preview.
+# ---------------------------------------------------------------------------
+def test_invoice_pdf_sets_document_info_title_and_author():
+    inv, pat, items, pays, settings = _build_fixture_invoice(paid_amount=500)
+    pdf = services.render_invoice_pdf(inv, pat, items, pays, settings)
+    # reportlab serialises /Title and /Author into the PDF's DocInfo
+    # dict as plain UTF-16 or Latin-1 literals. We only need to assert
+    # that the strings appear somewhere in the bytes — exact offset /
+    # encoding isn't the contract we care about.
+    assert b"/Title" in pdf
+    assert b"/Author" in pdf
+    assert b"Invoice" in pdf
+    assert b"Rahul" in pdf
+    assert b"Clinikore" in pdf
+
+
+# ---------------------------------------------------------------------------
+# Patient identity — DOB should now appear when available and fall back
+# to the legacy ``age`` field otherwise. Exercised via the invoice's
+# "Billed to" block because it reuses the same shared helper as the
+# prescription renderers.
+# ---------------------------------------------------------------------------
+def test_invoice_html_shows_dob_when_present():
+    from datetime import date
+    inv, pat, items, pays, settings = _build_fixture_invoice(paid_amount=500)
+    pat.date_of_birth = date(1990, 3, 15)
+    pat.age = None  # force the renderer to derive from DOB
+    html_doc = services.render_invoice_html(inv, pat, items, pays, settings)
+    assert "DOB: 15 Mar 1990" in html_doc
+    # Age is computed from DOB, not hard-coded: assert a plausible
+    # two-digit value rather than a specific year-dependent number.
+    import re
+    assert re.search(r"DOB: 15 Mar 1990 \(\d{2}y\)", html_doc)
+
+
+def test_invoice_html_falls_back_to_legacy_age_without_dob():
+    inv, pat, items, pays, settings = _build_fixture_invoice(paid_amount=500)
+    pat.date_of_birth = None
+    pat.age = 42
+    html_doc = services.render_invoice_html(inv, pat, items, pays, settings)
+    assert "Age: 42" in html_doc
+    assert "DOB:" not in html_doc
+
+
+# ---------------------------------------------------------------------------
 # Reminder stub — exercised via services directly so we don't flake on
 # network in CI. The frontend leans on this to render the Prescription /
 # "treatment advised" SMS preview.

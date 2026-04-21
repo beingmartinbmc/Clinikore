@@ -7,7 +7,7 @@ import {
   Appointment,
   ConsultationNote,
   Invoice,
-  isDentalSpecialization,
+  patientAge,
   Patient,
   Procedure,
   Settings,
@@ -22,30 +22,12 @@ import DentalChart from "../components/DentalChart";
 import TreatmentPlanEditor from "../components/TreatmentPlanEditor";
 import { format } from "date-fns";
 import clsx from "clsx";
+import { useI18n } from "../i18n/I18nContext";
 
 type Tab = "visits" | "dental" | "plans" | "treatments" | "invoices";
 
-const BASE_TABS: { id: Tab; label: string; icon: any }[] = [
-  { id: "visits", label: "Visits & notes", icon: NotebookPen },
-  { id: "plans", label: "Treatment plans", icon: ClipboardList },
-  { id: "treatments", label: "Treatments", icon: Stethoscope },
-  { id: "invoices", label: "Invoices", icon: Receipt },
-];
-
-const DENTAL_TAB: { id: Tab; label: string; icon: any } = {
-  id: "dental", label: "Dental chart", icon: Bone,
-};
-
-const LIFECYCLE_LABEL: Record<string, string> = {
-  new: "New",
-  consulted: "Consulted",
-  planned: "Plan ready",
-  in_progress: "In progress",
-  completed: "Completed",
-  no_show: "No-show",
-};
-
 export default function PatientDetail() {
+  const { t } = useI18n();
   const { id } = useParams();
   const pid = Number(id);
   const [tab, setTab] = useState<Tab>("visits");
@@ -56,11 +38,18 @@ export default function PatientDetail() {
   const [plans, setPlans] = useState<TreatmentPlan[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [procedures, setProcedures] = useState<Procedure[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  // Dentist-only UI: the dental-chart tab is added to the tab strip when
-  // the clinic settings describe a dental specialization.
-  const isDentist = isDentalSpecialization(settings);
-  const TABS = isDentist ? [BASE_TABS[0], DENTAL_TAB, ...BASE_TABS.slice(1)] : BASE_TABS;
+  const [, setSettings] = useState<Settings | null>(null);
+
+  // Dental chart is always visible. Doctors of other specialities rarely need
+  // it, but the UI cost is one extra tab and the clinical value of having a
+  // quick odontogram accessible to every clinician is worth the footprint.
+  const TABS: { id: Tab; label: string; icon: any }[] = [
+    { id: "visits", label: t("pdetail.tab.visits"), icon: NotebookPen },
+    { id: "dental", label: t("pdetail.tab.dental"), icon: Bone },
+    { id: "plans", label: t("pdetail.tab.plans"), icon: ClipboardList },
+    { id: "treatments", label: t("pdetail.tab.treatments"), icon: Stethoscope },
+    { id: "invoices", label: t("pdetail.tab.invoices"), icon: Receipt },
+  ];
 
   const [txOpen, setTxOpen] = useState(false);
   const [tx, setTx] = useState({
@@ -98,11 +87,17 @@ export default function PatientDetail() {
 
   async function saveProfile() {
     try {
+      // When DOB is provided, recompute age so a stale hand-entered value
+      // doesn't silently override the canonical derived age.
+      const dob = (draft as any).date_of_birth || null;
+      const derivedAge = patientAge({ age: null, date_of_birth: dob });
       await api.put(`/api/patients/${pid}`, {
         ...draft,
-        age: draft.age ? Number(draft.age) : null,
+        date_of_birth: dob,
+        gender: (draft as any).gender || null,
+        age: derivedAge ?? (draft.age ? Number(draft.age) : null),
       });
-      toast.success("Saved");
+      toast.success(t("common.saved"));
       setEditing(false);
       reload();
     } catch (e: any) {
@@ -112,7 +107,7 @@ export default function PatientDetail() {
 
   async function addTreatment(e: FormEvent) {
     e.preventDefault();
-    if (!tx.procedure_id) return toast.error("Pick a procedure");
+    if (!tx.procedure_id) return toast.error(t("pdetail.pick_a_procedure"));
     try {
       await api.post("/api/treatments", {
         patient_id: pid,
@@ -122,7 +117,7 @@ export default function PatientDetail() {
         price: tx.price ? Number(tx.price) : 0,
         performed_on: tx.performed_on,
       });
-      toast.success("Treatment recorded");
+      toast.success(t("pdetail.treatment_recorded"));
       setTxOpen(false);
       setTx({ procedure_id: "", tooth: "", notes: "", price: "", performed_on: new Date().toISOString().slice(0, 10) });
       reload();
@@ -132,22 +127,22 @@ export default function PatientDetail() {
   }
 
   async function removeTreatment(tid: number) {
-    if (!confirm("Delete this treatment?")) return;
+    if (!confirm(t("pdetail.confirm_delete_treatment"))) return;
     const data: any = await api.del(`/api/treatments/${tid}`);
     if (data?.undo_token) {
       toast.success(
-        (t) => (
+        (tt) => (
           <span className="flex items-center gap-3">
-            Treatment deleted.
+            {t("pdetail.treatment_deleted")}
             <button
               className="underline font-semibold text-brand-700"
               onClick={async () => {
                 await api.post(`/api/undo/${data.undo_token}`);
-                toast.dismiss(t.id);
+                toast.dismiss(tt.id);
                 reload();
               }}
             >
-              Undo
+              {t("common.undo")}
             </button>
           </span>
         ),
@@ -158,14 +153,14 @@ export default function PatientDetail() {
   }
 
   async function createPlan() {
-    if (!newPlanTitle.trim()) return toast.error("Name the plan");
+    if (!newPlanTitle.trim()) return toast.error(t("pdetail.plan_name_required"));
     try {
       await api.post("/api/treatment-plans", {
         patient_id: pid,
         title: newPlanTitle.trim(),
       });
       setNewPlanTitle("");
-      toast.success("Plan created");
+      toast.success(t("pdetail.plan_created"));
       reload();
     } catch (e: any) {
       toast.error(e.message);
@@ -173,7 +168,7 @@ export default function PatientDetail() {
   }
 
   async function deletePlan(planId: number) {
-    if (!confirm("Delete this plan? Treatments already recorded stay intact.")) return;
+    if (!confirm(t("pdetail.delete_plan_confirm"))) return;
     await api.del(`/api/treatment-plans/${planId}`);
     reload();
   }
@@ -191,24 +186,48 @@ export default function PatientDetail() {
     setNoteOpen(true);
   }
 
-  if (!patient) return <div className="p-8 text-slate-500">Loading...</div>;
+  if (!patient) return <div className="p-8 text-slate-500">{t("common.loading")}</div>;
 
   const lifecycle = patient.lifecycle || "new";
+
+  // Labels for the profile fields list. Uses translation keys and a few flags
+  // to keep the JSX below compact.
+  const profileFields: {
+    key: "age" | "phone" | "email" | "allergies" | "medical_history" | "dental_history" | "notes";
+    label: string;
+    multiline?: boolean;
+  }[] = [
+    { key: "age", label: t("pdetail.age") },
+    { key: "phone", label: t("pdetail.phone") },
+    { key: "email", label: t("pdetail.email") },
+    { key: "allergies", label: t("pdetail.allergies") },
+    { key: "medical_history", label: t("pdetail.medical_history"), multiline: true },
+    { key: "dental_history", label: t("pdetail.dental_history"), multiline: true },
+    { key: "notes", label: t("pdetail.notes"), multiline: true },
+  ];
 
   return (
     <div className="p-8">
       <Link to="/patients" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-3">
-        <ArrowLeft size={14} /> Back to patients
+        <ArrowLeft size={14} /> {t("pdetail.back")}
       </Link>
       <PageHeader
         title={patient.name}
         subtitle={
           <span className="flex items-center gap-2 flex-wrap">
-            <span>Patient #{patient.id} · Registered {format(new Date(patient.created_at), "dd MMM yyyy")}</span>
+            <span>
+              {t("pdetail.subtitle", {
+                id: patient.id,
+                date: format(new Date(patient.created_at), "dd MMM yyyy"),
+              })}
+            </span>
             <StatusBadge value={lifecycle} />
             {typeof patient.pending_steps === "number" && patient.pending_steps > 0 && (
               <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                {patient.pending_steps} pending step{patient.pending_steps === 1 ? "" : "s"}
+                {t("pdetail.pending_steps", {
+                  count: patient.pending_steps,
+                  s: patient.pending_steps === 1 ? "" : "s",
+                })}
               </span>
             )}
           </span> as any
@@ -216,11 +235,11 @@ export default function PatientDetail() {
         actions={
           editing ? (
             <>
-              <button className="btn-ghost" onClick={() => { setEditing(false); setDraft(patient); }}>Cancel</button>
-              <button className="btn-primary" onClick={saveProfile}>Save changes</button>
+              <button className="btn-ghost" onClick={() => { setEditing(false); setDraft(patient); }}>{t("common.cancel")}</button>
+              <button className="btn-primary" onClick={saveProfile}>{t("pdetail.save_changes")}</button>
             </>
           ) : (
-            <button className="btn-outline" onClick={() => setEditing(true)}>Edit profile</button>
+            <button className="btn-outline" onClick={() => setEditing(true)}>{t("pdetail.edit_profile")}</button>
           )
         }
       />
@@ -228,29 +247,96 @@ export default function PatientDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile */}
         <div className="card p-5 lg:col-span-1 space-y-3 h-fit">
-          <h2 className="font-semibold text-slate-900 mb-2">Profile</h2>
-          {(["age", "phone", "email", "allergies", "medical_history", "dental_history", "notes"] as const).map((k) => (
-            <div key={k}>
-              <label className="label capitalize">{k.replace("_", " ")}</label>
+          <h2 className="font-semibold text-slate-900 mb-2">{t("pdetail.profile")}</h2>
+
+          {/* Date of birth — source of truth for age. Editing it updates the
+              derived age immediately so the doctor sees the canonical value. */}
+          <div>
+            <label className="label">{t("pdetail.dob")}</label>
+            {editing ? (
+              <>
+                <input
+                  className="input"
+                  type="date"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={(draft as any).date_of_birth || ""}
+                  onChange={(e) => setDraft({ ...draft, date_of_birth: e.target.value } as any)}
+                />
+                {(draft as any).date_of_birth && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {t("pdetail.age_in_dob", {
+                      age: patientAge({ age: null, date_of_birth: (draft as any).date_of_birth }) ?? "—",
+                    })}
+                  </p>
+                )}
+              </>
+            ) : patient.date_of_birth ? (
+              <div className="text-sm text-slate-700">
+                {format(new Date(patient.date_of_birth + "T00:00:00"), "dd MMM yyyy")}
+                <span className="text-slate-400 ml-2">
+                  ({t("pdetail.age_label", { age: patientAge(patient) ?? "—" })})
+                </span>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-400">—</div>
+            )}
+          </div>
+
+          {/* Gender — drives the gynaecology / andrology relevance filter. */}
+          <div>
+            <label className="label">{t("pdetail.gender")}</label>
+            {editing ? (
+              <select
+                className="input"
+                value={(draft as any).gender || ""}
+                onChange={(e) => setDraft({ ...draft, gender: e.target.value || null } as any)}
+              >
+                <option value="">—</option>
+                <option value="male">{t("pdetail.gender.male")}</option>
+                <option value="female">{t("pdetail.gender.female")}</option>
+                <option value="other">{t("pdetail.gender.other")}</option>
+              </select>
+            ) : (
+              <div className="text-sm text-slate-700">
+                {patient.gender === "male"
+                  ? t("pdetail.gender.male")
+                  : patient.gender === "female"
+                    ? t("pdetail.gender.female")
+                    : patient.gender === "other"
+                      ? t("pdetail.gender.other")
+                      : <span className="text-slate-400">—</span>}
+              </div>
+            )}
+          </div>
+
+          {profileFields.map(({ key, label, multiline }) => (
+            <div key={key}>
+              <label className="label">{label}</label>
               {editing ? (
-                k === "medical_history" || k === "dental_history" || k === "notes" ? (
+                multiline ? (
                   <textarea
                     className="textarea"
                     rows={2}
-                    value={(draft as any)[k] || ""}
-                    onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+                    value={(draft as any)[key] || ""}
+                    onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
                   />
                 ) : (
                   <input
                     className="input"
-                    type={k === "age" ? "number" : "text"}
-                    value={(draft as any)[k] || ""}
-                    onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+                    type={key === "age" ? "number" : "text"}
+                    value={(draft as any)[key] || ""}
+                    onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+                    // When DOB is filled it's the source of truth; keep the
+                    // age input visible for records without DOB but disable it
+                    // to avoid contradictory values.
+                    disabled={key === "age" && !!(draft as any).date_of_birth}
                   />
                 )
               ) : (
                 <div className="text-sm text-slate-700 whitespace-pre-wrap">
-                  {(patient as any)[k] || <span className="text-slate-400">—</span>}
+                  {key === "age"
+                    ? (patientAge(patient) ?? <span className="text-slate-400">—</span>)
+                    : ((patient as any)[key] || <span className="text-slate-400">—</span>)}
                 </div>
               )}
             </div>
@@ -284,13 +370,13 @@ export default function PatientDetail() {
             <div className="space-y-4">
               <div className="card p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-slate-900">Visits</h3>
+                  <h3 className="font-semibold text-slate-900">{t("pdetail.visits")}</h3>
                   <button className="btn-ghost !text-sm" onClick={openStandaloneNote}>
-                    <Plus size={14} /> Standalone note
+                    <Plus size={14} /> {t("pdetail.standalone_note")}
                   </button>
                 </div>
                 {appts.length === 0 && notes.filter((n) => !n.appointment_id).length === 0 ? (
-                  <div className="text-sm text-slate-500 py-6 text-center">No visits yet.</div>
+                  <div className="text-sm text-slate-500 py-6 text-center">{t("pdetail.no_visits")}</div>
                 ) : (
                   <div className="divide-y divide-slate-100">
                     {appts.map((a) => {
@@ -306,8 +392,8 @@ export default function PatientDetail() {
                             </div>
                             {note && (
                               <div className="mt-1 text-xs text-slate-600 pl-2 border-l-2 border-brand-100">
-                                {note.diagnosis && <div><b>Dx:</b> {note.diagnosis}</div>}
-                                {note.treatment_advised && <div><b>Rx:</b> {note.treatment_advised}</div>}
+                                {note.diagnosis && <div><b>{t("pdetail.dx")}</b> {note.diagnosis}</div>}
+                                {note.treatment_advised && <div><b>{t("pdetail.rx")}</b> {note.treatment_advised}</div>}
                               </div>
                             )}
                           </div>
@@ -317,7 +403,7 @@ export default function PatientDetail() {
                               className="btn-ghost !py-1 !text-xs"
                               onClick={() => openNoteFor(a)}
                             >
-                              {note ? "Edit note" : "Add note"}
+                              {note ? t("pdetail.edit_note") : t("pdetail.add_note")}
                             </button>
                           </div>
                         </div>
@@ -326,10 +412,10 @@ export default function PatientDetail() {
                     {notes.filter((n) => !n.appointment_id).map((n) => (
                       <div key={`standalone-${n.id}`} className="py-3">
                         <div className="font-medium text-slate-900 text-sm">
-                          Standalone note · {format(new Date(n.created_at), "dd MMM yyyy")}
+                          {t("pdetail.standalone_prefix")} {format(new Date(n.created_at), "dd MMM yyyy")}
                         </div>
-                        {n.diagnosis && <div className="text-xs"><b>Dx:</b> {n.diagnosis}</div>}
-                        {n.treatment_advised && <div className="text-xs"><b>Rx:</b> {n.treatment_advised}</div>}
+                        {n.diagnosis && <div className="text-xs"><b>{t("pdetail.dx")}</b> {n.diagnosis}</div>}
+                        {n.treatment_advised && <div className="text-xs"><b>{t("pdetail.rx")}</b> {n.treatment_advised}</div>}
                       </div>
                     ))}
                   </div>
@@ -338,7 +424,7 @@ export default function PatientDetail() {
             </div>
           )}
 
-          {tab === "dental" && isDentist && (
+          {tab === "dental" && (
             <DentalChart patientId={pid} />
           )}
 
@@ -347,18 +433,18 @@ export default function PatientDetail() {
               <div className="card p-3 flex items-center gap-2">
                 <input
                   className="input flex-1"
-                  placeholder="New plan title (e.g. Full-mouth dental rehab)"
+                  placeholder={t("pdetail.new_plan_placeholder")}
                   value={newPlanTitle}
                   onChange={(e) => setNewPlanTitle(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && createPlan()}
                 />
                 <button className="btn-primary" onClick={createPlan}>
-                  <Plus size={14} /> New plan
+                  <Plus size={14} /> {t("pdetail.new_plan")}
                 </button>
               </div>
               {plans.length === 0 ? (
                 <div className="card p-8 text-center text-sm text-slate-500">
-                  No treatment plans. Create one above to organize multi-visit care.
+                  {t("pdetail.no_plans")}
                 </div>
               ) : (
                 plans.map((p) => (
@@ -367,7 +453,7 @@ export default function PatientDetail() {
                     <button
                       className="absolute top-4 right-4 text-slate-400 hover:text-rose-600"
                       onClick={() => deletePlan(p.id)}
-                      title="Delete plan"
+                      title={t("pdetail.delete_plan_title")}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -380,35 +466,35 @@ export default function PatientDetail() {
           {tab === "treatments" && (
             <div className="card p-5">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-slate-900">Treatments</h3>
+                <h3 className="font-semibold text-slate-900">{t("pdetail.treatments")}</h3>
                 <button className="btn-primary" onClick={() => setTxOpen(true)}>
-                  <Plus size={14} /> Add
+                  <Plus size={14} /> {t("common.add")}
                 </button>
               </div>
               {treatments.length === 0 ? (
-                <div className="text-sm text-slate-500 py-6 text-center">No treatments recorded.</div>
+                <div className="text-sm text-slate-500 py-6 text-center">{t("pdetail.no_treatments")}</div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="text-slate-500">
                     <tr>
-                      <th className="text-left font-medium py-2">Date</th>
-                      <th className="text-left font-medium py-2">Procedure</th>
-                      <th className="text-left font-medium py-2">Tooth</th>
-                      <th className="text-right font-medium py-2">Price</th>
+                      <th className="text-left font-medium py-2">{t("pdetail.col.date")}</th>
+                      <th className="text-left font-medium py-2">{t("pdetail.col.procedure")}</th>
+                      <th className="text-left font-medium py-2">{t("pdetail.col.tooth")}</th>
+                      <th className="text-right font-medium py-2">{t("pdetail.col.price")}</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {treatments.map((t) => (
-                      <tr key={t.id}>
-                        <td className="py-2">{format(new Date(t.performed_on), "dd MMM yyyy")}</td>
-                        <td className="py-2 font-medium text-slate-900">{t.procedure_name}</td>
-                        <td className="py-2">{t.tooth || "—"}</td>
-                        <td className="py-2 text-right">₹ {t.price.toLocaleString()}</td>
+                    {treatments.map((tr) => (
+                      <tr key={tr.id}>
+                        <td className="py-2">{format(new Date(tr.performed_on), "dd MMM yyyy")}</td>
+                        <td className="py-2 font-medium text-slate-900">{tr.procedure_name}</td>
+                        <td className="py-2">{tr.tooth || "—"}</td>
+                        <td className="py-2 text-right">₹ {tr.price.toLocaleString()}</td>
                         <td className="py-2 text-right">
                           <button
                             className="text-slate-400 hover:text-rose-600"
-                            onClick={() => removeTreatment(t.id)}
+                            onClick={() => removeTreatment(tr.id)}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -423,20 +509,20 @@ export default function PatientDetail() {
 
           {tab === "invoices" && (
             <div className="card p-5">
-              <h3 className="font-semibold text-slate-900 mb-3">Invoices</h3>
+              <h3 className="font-semibold text-slate-900 mb-3">{t("pdetail.invoices")}</h3>
               {invoices.length === 0 ? (
                 <div className="text-sm text-slate-500 py-6 text-center">
-                  No invoices for this patient.
+                  {t("pdetail.no_invoices")}
                 </div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="text-slate-500">
                     <tr>
                       <th className="text-left font-medium py-2">#</th>
-                      <th className="text-left font-medium py-2">Date</th>
-                      <th className="text-right font-medium py-2">Total</th>
-                      <th className="text-right font-medium py-2">Balance</th>
-                      <th className="text-left font-medium py-2">Status</th>
+                      <th className="text-left font-medium py-2">{t("pdetail.col.date")}</th>
+                      <th className="text-right font-medium py-2">{t("pdetail.col.total")}</th>
+                      <th className="text-right font-medium py-2">{t("pdetail.col.balance")}</th>
+                      <th className="text-left font-medium py-2">{t("pdetail.col.status")}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -479,17 +565,17 @@ export default function PatientDetail() {
       <Modal
         open={txOpen}
         onClose={() => setTxOpen(false)}
-        title="Record treatment"
+        title={t("pdetail.record_treatment")}
         footer={
           <>
-            <button className="btn-ghost" onClick={() => setTxOpen(false)}>Cancel</button>
-            <button className="btn-primary" onClick={addTreatment as any}>Save</button>
+            <button className="btn-ghost" onClick={() => setTxOpen(false)}>{t("common.cancel")}</button>
+            <button className="btn-primary" onClick={addTreatment as any}>{t("common.save")}</button>
           </>
         }
       >
         <form onSubmit={addTreatment} className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className="label">Procedure *</label>
+            <label className="label">{t("pdetail.procedure_required")}</label>
             <select
               className="select"
               required
@@ -503,7 +589,7 @@ export default function PatientDetail() {
                 });
               }}
             >
-              <option value="">Select procedure...</option>
+              <option value="">{t("pdetail.select_procedure")}</option>
               {procedures.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} (₹{p.default_price})
@@ -512,16 +598,16 @@ export default function PatientDetail() {
             </select>
           </div>
           <div>
-            <label className="label">Tooth</label>
+            <label className="label">{t("pdetail.col.tooth")}</label>
             <input
               className="input"
-              placeholder="e.g. 36"
+              placeholder={t("pdetail.tooth_placeholder")}
               value={tx.tooth}
               onChange={(e) => setTx({ ...tx, tooth: e.target.value })}
             />
           </div>
           <div>
-            <label className="label">Date</label>
+            <label className="label">{t("pdetail.col.date")}</label>
             <input
               className="input"
               type="date"
@@ -530,7 +616,7 @@ export default function PatientDetail() {
             />
           </div>
           <div className="col-span-2">
-            <label className="label">Price (₹)</label>
+            <label className="label">{t("pdetail.price_label")}</label>
             <input
               className="input"
               type="number"
@@ -539,7 +625,7 @@ export default function PatientDetail() {
             />
           </div>
           <div className="col-span-2">
-            <label className="label">Notes</label>
+            <label className="label">{t("pdetail.notes")}</label>
             <textarea
               className="textarea"
               rows={2}
@@ -555,8 +641,8 @@ export default function PatientDetail() {
         onClose={() => setNoteOpen(false)}
         title={
           noteForAppt?.appt
-            ? `Note for ${format(new Date(noteForAppt.appt.start), "dd MMM yyyy, p")}`
-            : "Consultation note"
+            ? t("pdetail.note_for", { when: format(new Date(noteForAppt.appt.start), "dd MMM yyyy, p") })
+            : t("pdetail.consultation_note")
         }
         width="max-w-2xl"
       >

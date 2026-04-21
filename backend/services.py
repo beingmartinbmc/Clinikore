@@ -15,7 +15,7 @@ import html
 import io
 import logging
 import os
-from datetime import datetime
+from datetime import date, datetime
 from typing import Iterable, Optional
 
 from reportlab.lib.pagesizes import A4
@@ -51,6 +51,45 @@ def _clean_note(text: Optional[str]) -> str:
     if t.startswith(_DEMO_NOTE_PREFIX):
         t = t[len(_DEMO_NOTE_PREFIX):]
     return t
+
+
+def _age_from_dob(dob: date, today: Optional[date] = None) -> int:
+    """Whole-years age from a DOB. Accounts for "hasn't had a birthday yet
+    this year" so a patient born 2 Jan 1990 is 34 on 1 Jan 2024, not 35."""
+    ref = today or date.today()
+    years = ref.year - dob.year
+    if (ref.month, ref.day) < (dob.month, dob.day):
+        years -= 1
+    return max(0, years)
+
+
+def _patient_identity_bits(patient: Patient) -> list[str]:
+    """Build the patient identity meta-line shown on prescriptions and
+    invoices. Prefers DOB over the legacy ``age`` field so dated
+    printouts remain accurate as time passes; falls back to the stored
+    integer age for records predating DOB capture.
+
+    Returns an ordered list of already-formatted strings that the caller
+    can join with a separator (` · ` in HTML, the same in PDF)."""
+    bits: list[str] = []
+    dob = getattr(patient, "date_of_birth", None)
+    if dob:
+        try:
+            age = _age_from_dob(dob)
+            bits.append(f"DOB: {dob.strftime('%d %b %Y')} ({age}y)")
+        except Exception:
+            bits.append(f"DOB: {dob}")
+    elif getattr(patient, "age", None):
+        bits.append(f"Age: {patient.age}")
+    if getattr(patient, "gender", None):
+        gender = patient.gender
+        # Gender is an Enum in the DB layer but may arrive as a raw
+        # string in ad-hoc callers — handle both.
+        label = gender.value if hasattr(gender, "value") else gender
+        bits.append(str(label).title())
+    if patient.phone:
+        bits.append(f"Phone: {patient.phone}")
+    return bits
 
 # Env-var fallbacks (kept for back-compat); the Settings row wins when present.
 CLINIC_NAME_FALLBACK = os.environ.get("CLINIC_NAME", "Clinikore Clinic")
@@ -144,10 +183,18 @@ def render_invoice_pdf(
     h = ClinicHeader(settings)
 
     buf = io.BytesIO()
+    # ``title`` + ``author`` populate the PDF's Document Info dictionary
+    # — Preview, Acrobat and Chrome's PDF viewer all read from here when
+    # showing the tab/window title. Without it the PDF shows up as
+    # "(anonymous)" in the viewer chrome.
+    pdf_title = f"Invoice #{invoice.id:05d} — {patient.name}"
+    pdf_author = h.doctor_title or h.clinic_name
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
         leftMargin=1.6 * cm, rightMargin=1.6 * cm,
         topMargin=1.6 * cm, bottomMargin=1.6 * cm,
+        title=pdf_title, author=pdf_author,
+        subject="Clinic invoice", creator="Clinikore",
     )
     styles = getSampleStyleSheet()
     brand = colors.HexColor("#0f766e")
@@ -794,9 +841,7 @@ def render_invoice_html(
       <div class="label">Billed to</div>
       <div class="name">{esc(patient.name)}</div>
       <div class="muted" style="font-size:0.88rem">
-        {esc(f'Phone: {patient.phone}') if patient.phone else ''}
-        {' · ' if patient.phone and getattr(patient, 'age', None) else ''}
-        {esc(f'Age: {patient.age}') if getattr(patient, 'age', None) else ''}
+        {esc(" · ".join(_patient_identity_bits(patient)))}
       </div>
     </div>
 
@@ -1003,9 +1048,7 @@ def render_prescription_html(
           <div class="label">Patient</div>
           <div class="name">{esc(patient.name)}</div>
           <div class="muted" style="font-size:0.88rem">
-            {esc(f'Age: {patient.age}') if getattr(patient, 'age', None) else ''}
-            {' · ' if getattr(patient, 'age', None) and patient.phone else ''}
-            {esc(f'Phone: {patient.phone}') if patient.phone else ''}
+            {esc(" · ".join(_patient_identity_bits(patient)))}
           </div>
         </div>
         <div style="text-align:right">
@@ -1112,10 +1155,18 @@ def render_prescription_pdf(
     rx_rows = [r for r in (_rx_row(x) for x in rx_items) if r]
 
     buf = io.BytesIO()
+    # PDF metadata — without this the viewer shows "(anonymous)" in the
+    # titlebar / tab when the file is opened. Use a date-qualified title
+    # so the patient has an easy time finding it later.
+    date_str = when.strftime("%d %b %Y")
+    pdf_title = f"Prescription — {patient.name} ({date_str})"
+    pdf_author = h.doctor_title or h.clinic_name
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
         leftMargin=1.6 * cm, rightMargin=1.6 * cm,
         topMargin=1.6 * cm, bottomMargin=1.6 * cm,
+        title=pdf_title, author=pdf_author,
+        subject="Medical prescription", creator="Clinikore",
     )
     styles = getSampleStyleSheet()
     brand = colors.HexColor("#0f766e")
@@ -1220,11 +1271,7 @@ def render_prescription_pdf(
         Paragraph("<b>PATIENT</b>", small),
         Paragraph(f"<b>{html.escape(patient.name)}</b>", styles["Normal"]),
     ]
-    meta_bits: list[str] = []
-    if getattr(patient, "age", None):
-        meta_bits.append(f"Age: {patient.age}")
-    if patient.phone:
-        meta_bits.append(f"Phone: {html.escape(patient.phone)}")
+    meta_bits = [html.escape(b) for b in _patient_identity_bits(patient)]
     if meta_bits:
         patient_bits.append(Paragraph(" · ".join(meta_bits), small))
     patient_bits.append(Paragraph(
@@ -1513,3 +1560,106 @@ def compute_patient_lifecycle(
     ):
         return PL.in_progress.value, last_visit, pending
     return PL.completed.value, last_visit, pending
+
+
+# ---------------------------------------------------------------------------
+# Patient demographics & specialty-aware relevance
+# ---------------------------------------------------------------------------
+# The Settings.doctor_category value captured during onboarding is used to
+# hide patients that are clinically irrelevant to the practising doctor. For
+# example a Paediatrician running the app should not see 70-year-olds on
+# their Dashboard — they're just noise. The mapping below encodes the
+# clinically accepted age bands and sex constraints for the categories we
+# expose in the onboarding UI. `general` / unknown categories pass every
+# patient through (no filter).
+# ---------------------------------------------------------------------------
+from datetime import date as _date  # local alias, datetime already imported
+
+# Fixed vocabulary the UI shows as onboarding cards. Keep in sync with the
+# OnboardingModal / Settings options list on the frontend.
+DOCTOR_CATEGORIES: tuple[str, ...] = (
+    "general",
+    "dental",
+    "pediatric",
+    "geriatric",
+    "gynecology",
+    "andrology",
+    "cardiology",
+    "dermatology",
+    "ent",
+    "orthopedic",
+    "psychiatry",
+    "ophthalmology",
+)
+
+
+def _normalize_category(cat: Optional[str]) -> str:
+    """Lowercase + strip + collapse whitespace for safe comparisons."""
+    if not cat:
+        return ""
+    return cat.strip().lower()
+
+
+def compute_patient_age(patient) -> Optional[int]:
+    """Return the patient's current age in whole years.
+
+    Prefers `date_of_birth` because birthdays don't lie — the `age` column
+    is a snapshot from the day of data entry and silently goes stale. Falls
+    back to `age` only when DOB is missing so legacy records without a DOB
+    still compute.
+    """
+    dob = getattr(patient, "date_of_birth", None)
+    if dob:
+        today = _date.today()
+        years = today.year - dob.year
+        # Subtract a year when the birthday hasn't happened yet this year.
+        if (today.month, today.day) < (dob.month, dob.day):
+            years -= 1
+        return max(years, 0)
+    age = getattr(patient, "age", None)
+    if isinstance(age, int):
+        return age
+    return None
+
+
+def is_patient_relevant(patient, doctor_category: Optional[str]) -> bool:
+    """Return True if a patient matches the doctor's clinical category.
+
+    We deliberately default to *include* the patient whenever we can't make a
+    confident "exclude" decision — for example the doctor hasn't picked a
+    category yet, or the patient has no DOB/gender recorded. Better to show
+    a borderline-relevant patient than to hide a real one.
+    """
+    cat = _normalize_category(doctor_category)
+    if not cat or cat == "general":
+        return True
+
+    age = compute_patient_age(patient)
+    gender = getattr(patient, "gender", None)
+    gender_val = gender.value if hasattr(gender, "value") else (gender or "")
+    gender_val = (gender_val or "").lower()
+
+    # Paediatrics: 0–17 inclusive. If age is unknown we *keep* the patient so
+    # we don't silently drop records from a partially-populated database.
+    if cat == "pediatric":
+        return age is None or age < 18
+
+    # Geriatrics: 60+ (WHO threshold used by Indian senior-citizen schemes).
+    if cat == "geriatric":
+        return age is None or age >= 60
+
+    # Gynaecology — treats women. Unknown gender is kept (opt-in filter).
+    if cat == "gynecology":
+        return gender_val in ("", "female", "other")
+
+    # Andrology — treats men (incl. male reproductive health / urology).
+    if cat == "andrology":
+        return gender_val in ("", "male", "other")
+
+    # All other specialties don't have a universally-applicable hard filter.
+    return True
+
+
+def filter_patients_by_category(patients, doctor_category: Optional[str]):
+    """Filter an iterable of Patient rows by the doctor's category."""
+    return [p for p in patients if is_patient_relevant(p, doctor_category)]

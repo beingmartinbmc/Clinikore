@@ -1,8 +1,8 @@
 import { useEffect, useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Plus, Search, Trash2, Phone, Mail } from "lucide-react";
-import { api, Patient } from "../api";
+import { Plus, Search, Trash2, Phone, Mail, Cake } from "lucide-react";
+import { api, Patient, ageFromDob, patientAge, Gender } from "../api";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/Modal";
 import StatusBadge from "../components/StatusBadge";
@@ -11,7 +11,11 @@ import { useI18n } from "../i18n/I18nContext";
 
 const emptyForm = {
   name: "",
+  // `age` is now a derived value but we still keep the direct input as a
+  // fallback for patients who don't remember their exact birth date.
   age: "",
+  date_of_birth: "",
+  gender: "" as "" | Gender,
   phone: "",
   email: "",
   medical_history: "",
@@ -43,9 +47,14 @@ export default function Patients() {
     e.preventDefault();
     setSaving(true);
     try {
+      // Prefer DOB — it's the source of truth and doesn't go stale. Only fall
+      // back to the typed-in `age` value when the doctor left DOB blank.
+      const derivedAge = ageFromDob(form.date_of_birth);
       await api.post("/api/patients", {
         ...form,
-        age: form.age ? Number(form.age) : null,
+        age: derivedAge ?? (form.age ? Number(form.age) : null),
+        date_of_birth: form.date_of_birth || null,
+        gender: form.gender || null,
       });
       toast.success("Patient added");
       setOpen(false);
@@ -144,7 +153,14 @@ export default function Patients() {
                     </div>
                   )}
                 </td>
-                <td className="px-4 py-3">{p.age ?? "—"}</td>
+                <td className="px-4 py-3">
+                  <div className="text-sm text-slate-700">{patientAge(p) ?? "—"}</div>
+                  {p.date_of_birth && (
+                    <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                      <Cake size={10} /> {format(new Date(p.date_of_birth + "T00:00:00"), "dd MMM yyyy")}
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-0.5">
                     {p.phone && (
@@ -211,13 +227,46 @@ export default function Patients() {
             />
           </div>
           <div>
-            <label className="label">Age</label>
+            <label className="label">Date of birth</label>
+            <input
+              className="input"
+              type="date"
+              // Block impossible future birth dates — the widget on most
+              // browsers will grey them out but a paste can still slip in.
+              max={new Date().toISOString().slice(0, 10)}
+              value={form.date_of_birth}
+              onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
+            />
+            {form.date_of_birth && ageFromDob(form.date_of_birth) !== null && (
+              <p className="text-xs text-slate-500 mt-1">
+                Age: {ageFromDob(form.date_of_birth)} years
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="label">Age (if DOB unknown)</label>
             <input
               className="input"
               type="number"
+              min={0}
+              max={150}
               value={form.age}
               onChange={(e) => setForm({ ...form, age: e.target.value })}
+              disabled={!!form.date_of_birth}
             />
+          </div>
+          <div>
+            <label className="label">Gender</label>
+            <select
+              className="input"
+              value={form.gender}
+              onChange={(e) => setForm({ ...form, gender: e.target.value as Gender | "" })}
+            >
+              <option value="">—</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
           </div>
           <div>
             <label className="label">Phone</label>

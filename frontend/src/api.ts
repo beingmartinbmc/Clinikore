@@ -132,10 +132,14 @@ export type TreatmentStepStatus =
   | "completed"
   | "skipped";
 
+export type Gender = "male" | "female" | "other";
+
 export interface Patient {
   id: number;
   name: string;
   age?: number | null;
+  date_of_birth?: string | null; // ISO date string "YYYY-MM-DD"
+  gender?: Gender | null;
   phone?: string | null;
   email?: string | null;
   medical_history?: string | null;
@@ -146,6 +150,24 @@ export interface Patient {
   lifecycle?: PatientLifecycle | null;
   last_visit?: string | null;
   pending_steps?: number;
+}
+
+/** Compute current age from a YYYY-MM-DD date-of-birth string. Returns null
+ * for missing / unparseable input. Mirrors `services.compute_patient_age`. */
+export function ageFromDob(dob?: string | null): number | null {
+  if (!dob) return null;
+  const d = new Date(dob + "T00:00:00");
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let years = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) years -= 1;
+  return Math.max(years, 0);
+}
+
+/** Best-effort current age: prefer DOB over the stored `age` field. */
+export function patientAge(p: Pick<Patient, "age" | "date_of_birth">): number | null {
+  return ageFromDob(p.date_of_birth) ?? (p.age ?? null);
 }
 
 export interface Procedure {
@@ -185,22 +207,70 @@ export interface Settings {
   clinic_email?: string | null;
   clinic_gstin?: string | null;
   specialization?: string | null;
+  /** Structured clinical category (enum-ish, see `DOCTOR_CATEGORIES`). Drives
+   *  speciality-aware patient filtering server-side. */
+  doctor_category?: string | null;
   locale?: string | null;
   onboarded_at?: string | null;
   updated_at: string;
 }
 
+/** Doctor categories in the order the onboarding UI presents them. Kept
+ *  in sync with `services.DOCTOR_CATEGORIES` on the backend — the server is
+ *  source of truth and exposes `GET /api/doctor-categories` too. */
+export const DOCTOR_CATEGORIES: readonly string[] = [
+  "general",
+  "dental",
+  "pediatric",
+  "geriatric",
+  "gynecology",
+  "andrology",
+  "cardiology",
+  "dermatology",
+  "ent",
+  "orthopedic",
+  "psychiatry",
+  "ophthalmology",
+] as const;
+
+/** Human-friendly label for a category id (covers the built-in set; falls
+ *  back to a Title-Case of the raw string for custom values). */
+export function doctorCategoryLabel(cat?: string | null): string {
+  const key = (cat || "").trim().toLowerCase();
+  const map: Record<string, string> = {
+    general: "General / Family Medicine",
+    dental: "Dental",
+    pediatric: "Pediatrics",
+    geriatric: "Geriatrics",
+    gynecology: "Gynecology",
+    andrology: "Andrology / Urology",
+    cardiology: "Cardiology",
+    dermatology: "Dermatology",
+    ent: "ENT",
+    orthopedic: "Orthopedics",
+    psychiatry: "Psychiatry",
+    ophthalmology: "Ophthalmology",
+  };
+  if (map[key]) return map[key];
+  if (!key) return "";
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
 /**
- * Settings are considered complete for onboarding when the three fields
- * required on every invoice / prescription by law (doctor name, clinic
- * name, medical-council registration number) are filled in.
+ * Settings are considered complete for onboarding when the four fields we
+ * absolutely need are filled in:
+ *   - doctor_name / clinic_name / registration_number: legally required on
+ *     every invoice / prescription (Indian Medical Council 1.4.2)
+ *   - doctor_category: drives speciality-aware patient filtering, captured
+ *     during onboarding so Day-1 lists show only relevant patients.
  */
 export function settingsComplete(s?: Partial<Settings> | null): boolean {
   if (!s) return false;
   return Boolean(
     (s.doctor_name || "").trim() &&
     (s.clinic_name || "").trim() &&
-    (s.registration_number || "").trim()
+    (s.registration_number || "").trim() &&
+    (s.doctor_category || "").trim()
   );
 }
 
@@ -313,8 +383,10 @@ export const FDI_LOWER: string[] = [
 ];
 
 export function isDentalSpecialization(
-  settings?: Pick<Settings, "specialization"> | null,
+  settings?: Pick<Settings, "specialization" | "doctor_category"> | null,
 ): boolean {
+  const cat = (settings?.doctor_category || "").toLowerCase();
+  if (cat === "dental") return true;
   const s = (settings?.specialization || "").toLowerCase();
   return s.includes("dent") || s.includes("orthodont") || s.includes("endodont");
 }

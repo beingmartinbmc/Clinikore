@@ -102,6 +102,16 @@ MIGRATIONS: list[tuple[str, str, str]] = [
     ("consultationnote", "prescription_items", "prescription_items TEXT"),
     ("consultationnote", "prescription_notes", "prescription_notes TEXT"),
     ("consultationnote", "invoice_id", "invoice_id INTEGER"),
+
+    # Patient demographics — DOB is the source of truth for age, enables
+    # pediatric/geriatric relevance filtering. Gender powers speciality
+    # filters (gynaecology/andrology).
+    ("patient", "date_of_birth", "date_of_birth DATE"),
+    ("patient", "gender", "gender TEXT"),
+
+    # Doctor's structured specialty category, captured during onboarding.
+    # Used to filter the patient list to clinically relevant patients only.
+    ("settings", "doctor_category", "doctor_category TEXT"),
 ]
 
 

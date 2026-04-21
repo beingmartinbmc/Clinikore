@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Phone, User, Receipt, Stethoscope, FileText } from "lucide-react";
 import { api, SearchResult } from "../api";
+import { useI18n } from "../i18n/I18nContext";
 
 /**
  * Global fuzzy search exposed via a header input and the `/` keyboard
@@ -10,6 +11,7 @@ import { api, SearchResult } from "../api";
  * instant.
  */
 export default function GlobalSearch() {
+  const { t } = useI18n();
   const nav = useNavigate();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -106,7 +108,7 @@ export default function GlobalSearch() {
         <input
           ref={inputRef}
           className="w-full pl-9 pr-12 py-2 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-          placeholder="Search patients, invoices, notes…  (press /)"
+          placeholder={t("gsearch.placeholder")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
@@ -143,7 +145,7 @@ export default function GlobalSearch() {
                 </div>
                 {r.match_phone && (
                   <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                    <Phone size={10} /> match
+                    <Phone size={10} /> {t("gsearch.match_label")}
                   </span>
                 )}
                 <span className="text-[10px] uppercase text-slate-400 shrink-0">
@@ -156,7 +158,7 @@ export default function GlobalSearch() {
       )}
       {open && q.trim().length >= 2 && results.length === 0 && (
         <div className="absolute z-50 mt-1 w-full bg-white rounded-lg shadow-xl border border-slate-200 px-3 py-4 text-sm text-slate-500">
-          No results for "{q}"
+          {t("gsearch.no_results", { q })}
         </div>
       )}
     </div>

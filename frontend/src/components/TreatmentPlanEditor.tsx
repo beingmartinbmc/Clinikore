@@ -10,6 +10,7 @@ import {
   TreatmentPlanStep,
   TreatmentStepStatus,
 } from "../api";
+import { useI18n } from "../i18n/I18nContext";
 
 interface Props {
   patientId: number;
@@ -36,7 +37,8 @@ const STATUS_TONE: Record<TreatmentStepStatus, string> = {
  * dental), status-updated, and marked complete — which atomically records
  * a Treatment row on the backend, so the ledger and the plan stay in sync.
  */
-export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Props) {
+export default function TreatmentPlanEditor({ plan, onChanged }: Props) {
+  const { t } = useI18n();
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [steps, setSteps] = useState<TreatmentPlanStep[]>(plan.steps);
   const [title, setTitle] = useState(plan.title);
@@ -78,7 +80,7 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
         title,
         notes: notes || null,
       });
-      toast.success("Plan saved");
+      toast.success(t("tpe.saved"));
       onChanged?.();
     } catch (e: any) {
       toast.error(e.message);
@@ -96,17 +98,20 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
 
   async function addStep() {
     if (!draft.title.trim() && !draft.procedure_id)
-      return toast.error("Pick a procedure or add a title");
+      return toast.error(t("tpe.pick_or_title"));
     try {
       await api.post(`/api/treatment-plans/${plan.id}/steps`, {
-        title: draft.title || procedures.find((p) => p.id === Number(draft.procedure_id))?.name || "Step",
+        title:
+          draft.title ||
+          procedures.find((p) => p.id === Number(draft.procedure_id))?.name ||
+          t("tpe.default_step"),
         procedure_id: draft.procedure_id ? Number(draft.procedure_id) : null,
         tooth: draft.tooth || null,
         estimated_cost: draft.estimated_cost || 0,
       });
       setDraft({ title: "", procedure_id: "", tooth: "", estimated_cost: 0 });
       setAdding(false);
-      toast.success("Step added");
+      toast.success(t("tpe.step_added"));
       onChanged?.();
     } catch (e: any) {
       toast.error(e.message);
@@ -114,7 +119,7 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
   }
 
   async function removeStep(step: TreatmentPlanStep) {
-    if (!confirm("Remove this step?")) return;
+    if (!confirm(t("tpe.remove_confirm"))) return;
     await api.del(`/api/treatment-plans/${plan.id}/steps/${step.id}`);
     onChanged?.();
   }
@@ -130,7 +135,7 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
   async function complete(step: TreatmentPlanStep) {
     try {
       await api.post(`/api/treatment-plans/${plan.id}/steps/${step.id}/complete`);
-      toast.success("Step completed — treatment recorded");
+      toast.success(t("tpe.step_completed"));
       onChanged?.();
     } catch (e: any) {
       toast.error(e.message);
@@ -149,19 +154,19 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
           />
           <div className="text-xs text-slate-500 mt-1 flex items-center gap-3 flex-wrap">
             <span>
-              {doneCount} / {steps.length} steps complete
+              {t("tpe.steps_progress", { done: doneCount, total: steps.length })}
             </span>
             <span>
-              Estimate: <b>₹ {estimate.toLocaleString()}</b>
+              {t("tpe.estimate")} <b>₹ {estimate.toLocaleString()}</b>
             </span>
             <span>
-              Actual so far: <b>₹ {actual.toLocaleString()}</b>
+              {t("tpe.actual")} <b>₹ {actual.toLocaleString()}</b>
             </span>
             <span className={
               "px-1.5 rounded bg-slate-100 text-slate-700 uppercase " +
               (plan.status === "completed" ? "bg-emerald-100 text-emerald-700" : "")
             }>
-              {plan.status.replace("_", " ")}
+              {t(`tpe.status.${plan.status}` as any)}
             </span>
           </div>
         </div>
@@ -170,7 +175,7 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
       <div className="border-t border-slate-100 pt-3">
         {steps.length === 0 ? (
           <div className="text-sm text-slate-500 text-center py-6">
-            No steps yet. Add the first one below.
+            {t("tpe.no_steps")}
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -191,7 +196,7 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
                     />
                     <input
                       className="input !py-1 !text-sm col-span-1"
-                      placeholder="Tooth"
+                      placeholder={t("tpe.tooth")}
                       value={step.tooth || ""}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -216,17 +221,17 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
                         patchStep(step, { status: e.target.value as TreatmentStepStatus })
                       }
                     >
-                      <option value="planned">Planned</option>
-                      <option value="in_progress">In progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="skipped">Skipped</option>
+                      <option value="planned">{t("tpe.status.planned")}</option>
+                      <option value="in_progress">{t("tpe.status.in_progress")}</option>
+                      <option value="completed">{t("tpe.status.completed")}</option>
+                      <option value="skipped">{t("tpe.status.skipped")}</option>
                     </select>
                     <div className="col-span-2 flex items-center justify-end gap-0.5">
                       <button
                         className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
                         disabled={idx === 0}
                         onClick={() => move(step, -1)}
-                        title="Move up"
+                        title={t("tpe.move_up")}
                       >
                         <ArrowUp size={14} />
                       </button>
@@ -234,7 +239,7 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
                         className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30"
                         disabled={idx === steps.length - 1}
                         onClick={() => move(step, +1)}
-                        title="Move down"
+                        title={t("tpe.move_down")}
                       >
                         <ArrowDown size={14} />
                       </button>
@@ -242,7 +247,7 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
                         <button
                           className="p-1 text-emerald-500 hover:text-emerald-700"
                           onClick={() => complete(step)}
-                          title="Mark complete & record treatment"
+                          title={t("tpe.mark_complete")}
                         >
                           <CheckCircle2 size={14} />
                         </button>
@@ -250,7 +255,7 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
                       <button
                         className="p-1 text-slate-400 hover:text-rose-600"
                         onClick={() => removeStep(step)}
-                        title="Remove"
+                        title={t("common.remove")}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -278,36 +283,36 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
               });
             }}
           >
-            <option value="">Procedure...</option>
+            <option value="">{t("tpe.procedure_select")}</option>
             {procedures.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
           <input
             className="input !py-1 !text-sm col-span-3"
-            placeholder="Title"
+            placeholder={t("tpe.title_placeholder")}
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
           />
           <input
             className="input !py-1 !text-sm col-span-1"
-            placeholder="Tooth"
+            placeholder={t("tpe.tooth")}
             value={draft.tooth}
             onChange={(e) => setDraft({ ...draft, tooth: e.target.value })}
           />
           <input
             className="input !py-1 !text-sm col-span-2 text-right"
             type="number"
-            placeholder="Cost"
+            placeholder={t("tpe.cost_placeholder")}
             value={draft.estimated_cost}
             onChange={(e) => setDraft({ ...draft, estimated_cost: Number(e.target.value) })}
           />
           <div className="col-span-2 flex gap-1 justify-end">
             <button type="button" className="btn-ghost !py-1 !text-xs" onClick={() => setAdding(false)}>
-              Cancel
+              {t("common.cancel")}
             </button>
             <button type="button" className="btn-primary !py-1 !text-xs" onClick={addStep}>
-              Add
+              {t("common.add")}
             </button>
           </div>
         </div>
@@ -317,12 +322,12 @@ export default function TreatmentPlanEditor({ patientId, plan, onChanged }: Prop
           className="btn-ghost !py-1 !text-sm"
           onClick={() => setAdding(true)}
         >
-          <Plus size={14} /> Add step
+          <Plus size={14} /> {t("tpe.add_step")}
         </button>
       )}
 
       <div>
-        <label className="label">Plan notes</label>
+        <label className="label">{t("tpe.plan_notes")}</label>
         <textarea
           className="textarea"
           rows={2}

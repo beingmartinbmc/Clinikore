@@ -9,6 +9,7 @@ import {
   ToothStatus,
 } from "../api";
 import Modal from "./Modal";
+import { useI18n } from "../i18n/I18nContext";
 
 /**
  * Dental chart (odontogram) for dentist users.
@@ -25,30 +26,37 @@ interface Props {
   patientId: number;
 }
 
-const STATUS_OPTIONS: { value: ToothStatus; label: string; color: string }[] = [
-  { value: "healthy",    label: "Healthy",     color: "bg-white text-slate-700 border-slate-300" },
-  { value: "caries",     label: "Caries",      color: "bg-amber-100 text-amber-800 border-amber-300" },
-  { value: "filled",     label: "Filled",      color: "bg-sky-100 text-sky-800 border-sky-300" },
-  { value: "root_canal", label: "Root canal",  color: "bg-indigo-100 text-indigo-800 border-indigo-300" },
-  { value: "crown",      label: "Crown",       color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
-  { value: "bridge",     label: "Bridge",      color: "bg-purple-100 text-purple-800 border-purple-300" },
-  { value: "implant",    label: "Implant",     color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
-  { value: "missing",    label: "Missing",     color: "bg-slate-200 text-slate-600 border-slate-400 line-through" },
-  { value: "impacted",   label: "Impacted",    color: "bg-orange-100 text-orange-800 border-orange-300" },
-  { value: "fractured",  label: "Fractured",   color: "bg-rose-100 text-rose-800 border-rose-300" },
-  { value: "mobile",     label: "Mobile",      color: "bg-pink-100 text-pink-800 border-pink-300" },
-  { value: "watch",      label: "Watch",       color: "bg-lime-100 text-lime-800 border-lime-300" },
+// Status colors + translation keys. Labels are resolved at render time so
+// they react to locale changes.
+const STATUS_META: { value: ToothStatus; labelKey: string; color: string }[] = [
+  { value: "healthy",    labelKey: "dental.healthy",    color: "bg-white text-slate-700 border-slate-300" },
+  { value: "caries",     labelKey: "dental.caries",     color: "bg-amber-100 text-amber-800 border-amber-300" },
+  { value: "filled",     labelKey: "dental.filled",     color: "bg-sky-100 text-sky-800 border-sky-300" },
+  { value: "root_canal", labelKey: "dental.root_canal", color: "bg-indigo-100 text-indigo-800 border-indigo-300" },
+  { value: "crown",      labelKey: "dental.crown",      color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
+  { value: "bridge",     labelKey: "dental.bridge",     color: "bg-purple-100 text-purple-800 border-purple-300" },
+  { value: "implant",    labelKey: "dental.implant",    color: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  { value: "missing",    labelKey: "dental.missing",    color: "bg-slate-200 text-slate-600 border-slate-400 line-through" },
+  { value: "impacted",   labelKey: "dental.impacted",   color: "bg-orange-100 text-orange-800 border-orange-300" },
+  { value: "fractured",  labelKey: "dental.fractured",  color: "bg-rose-100 text-rose-800 border-rose-300" },
+  { value: "mobile",     labelKey: "dental.mobile",     color: "bg-pink-100 text-pink-800 border-pink-300" },
+  { value: "watch",      labelKey: "dental.watch",      color: "bg-lime-100 text-lime-800 border-lime-300" },
 ];
 
 const STATUS_CLASS: Record<ToothStatus, string> = Object.fromEntries(
-  STATUS_OPTIONS.map((o) => [o.value, o.color]),
-) as Record<ToothStatus, string>;
-
-const STATUS_LABEL: Record<ToothStatus, string> = Object.fromEntries(
-  STATUS_OPTIONS.map((o) => [o.value, o.label]),
+  STATUS_META.map((o) => [o.value, o.color]),
 ) as Record<ToothStatus, string>;
 
 export default function DentalChart({ patientId }: Props) {
+  const { t } = useI18n();
+  const STATUS_OPTIONS = STATUS_META.map((o) => ({
+    value: o.value,
+    label: t(o.labelKey),
+    color: o.color,
+  }));
+  const STATUS_LABEL: Record<ToothStatus, string> = Object.fromEntries(
+    STATUS_OPTIONS.map((o) => [o.value, o.label]),
+  ) as Record<ToothStatus, string>;
   const [records, setRecords] = useState<ToothRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
@@ -113,11 +121,11 @@ export default function DentalChart({ patientId }: Props) {
           },
         );
       }
-      toast.success(`Tooth ${selected} saved`);
+      toast.success(t("dental.saved", { n: selected }));
       setSelected(null);
       reload();
     } catch (e: any) {
-      toast.error(e.message || "Could not save tooth");
+      toast.error(e.message || t("dental.save_failed"));
     } finally {
       setSaving(false);
     }
@@ -134,7 +142,7 @@ export default function DentalChart({ patientId }: Props) {
         title={
           rec
             ? `${n} · ${STATUS_LABEL[rec.status]}${rec.notes ? ` — ${rec.notes}` : ""}`
-            : `${n} · Healthy`
+            : `${n} · ${t("dental.healthy")}`
         }
       >
         {n}
@@ -149,12 +157,12 @@ export default function DentalChart({ patientId }: Props) {
     <div className="card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-slate-900">Dental chart</h3>
+          <h3 className="font-semibold text-slate-900">{t("dental.title")}</h3>
           <p className="text-xs text-slate-500">
-            FDI numbering · click a tooth to mark its status, conditions and notes.
+            {t("dental.subtitle")}
           </p>
         </div>
-        {loading && <div className="text-xs text-slate-400">Loading…</div>}
+        {loading && <div className="text-xs text-slate-400">{t("dental.loading")}</div>}
       </div>
 
       <div className="flex flex-col items-center gap-1 select-none overflow-x-auto">
@@ -192,11 +200,11 @@ export default function DentalChart({ patientId }: Props) {
       <Modal
         open={selected !== null}
         onClose={() => setSelected(null)}
-        title={selected ? `Tooth ${selected}` : ""}
+        title={selected ? t("dental.tooth_title", { n: selected }) : ""}
       >
         <div className="space-y-3">
           <div>
-            <label className="label">Status</label>
+            <label className="label">{t("dental.status")}</label>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
               {STATUS_OPTIONS.map((o) => (
                 <button
@@ -213,27 +221,27 @@ export default function DentalChart({ patientId }: Props) {
             </div>
           </div>
           <div>
-            <label className="label">Conditions / findings</label>
+            <label className="label">{t("dental.conditions")}</label>
             <input
               className="input"
-              placeholder="e.g. Deep caries on mesial surface"
+              placeholder={t("dental.conditions_placeholder")}
               value={draft.conditions}
               onChange={(e) => setDraft({ ...draft, conditions: e.target.value })}
             />
           </div>
           <div>
-            <label className="label">Notes</label>
+            <label className="label">{t("common.notes")}</label>
             <textarea
               className="textarea"
               rows={3}
-              placeholder="Planned treatment, last X-ray, referral…"
+              placeholder={t("dental.notes_placeholder")}
               value={draft.notes}
               onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
             />
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <button className="btn-ghost" onClick={() => setSelected(null)} type="button">
-              <X size={14} /> Cancel
+              <X size={14} /> {t("common.cancel")}
             </button>
             <button
               className="btn-primary"
@@ -241,7 +249,7 @@ export default function DentalChart({ patientId }: Props) {
               type="button"
               disabled={saving}
             >
-              <Save size={14} /> Save
+              <Save size={14} /> {t("common.save")}
             </button>
           </div>
         </div>
