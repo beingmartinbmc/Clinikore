@@ -50,7 +50,10 @@ doctor-helper/
 | OS | Python | WebView backend | Extra steps |
 |----|--------|-----------------|-------------|
 | macOS 11+ | 3.10+ | Cocoa WebKit (built-in) | none |
-| Windows 10/11 | 3.10+ | Edge WebView2 (built-in on Win 10+) | [Install WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) if missing |
+| Windows 7 SP1 x86 | bundled Python 3.8.10 32-bit | Chrome/default browser fallback | download the `win-x86` installer; install Chrome/Chromium if no default browser is available |
+| Windows 7 SP1 x64 | bundled Python 3.8.10 64-bit | Chrome/default browser fallback | download the `win-x64` installer; install Chrome/Chromium if no default browser is available |
+| Windows 10/11 x86 | bundled Python 3.8.10 32-bit for packaged installer; 3.8-3.13 for source installs | Edge WebView2 | download the `win-x86` installer; [install WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) if missing |
+| Windows 10/11 x64 | bundled Python 3.8.10 for packaged installer; 3.8-3.13 for source installs | Edge WebView2 (built-in on Win 11/recent Win 10) | [Install WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) if missing |
 | Linux (Ubuntu/Fedora/Arch) | 3.10+ | Qt (PyQt5) | `sudo apt install libxcb-xinerama0 libgl1` (Debian/Ubuntu) |
 
 The `requirements.txt` installs `pywebview[qt]` only on Linux via a PEP 508
@@ -67,7 +70,8 @@ Every OS has a matched pair of scripts in `scripts/`:
 
 The installer:
 
-- Verifies Python 3.10+ (and prints a download link if missing).
+- Verifies Python 3.8+ on Windows / 3.9+ elsewhere (Windows 7 must use
+  Python 3.8.x for source installs).
 - Verifies Node.js 18+ — **skipped entirely** if `frontend/dist` is pre-built (see below).
 - Creates the `.venv`, installs every Python dependency, builds the React UI.
 - Is idempotent — safe to re-run after updates.
@@ -78,22 +82,31 @@ The launcher assumes install is done and just starts the desktop window.
 
 ### ⭐ Windows — build a proper `Setup.exe` (recommended for commercial distribution)
 
-The doctor downloads **one file**, double-clicks it, and gets a real Windows
-install wizard with Desktop + Start Menu shortcuts. Zero Python, zero Node,
-zero scripts on their machine.
+The doctor downloads the installer that matches their Windows architecture,
+double-clicks it, and gets a real Windows install wizard with Desktop + Start
+Menu shortcuts. Zero Python, zero Node, zero scripts on their machine.
 
-**You** (the developer) build the installer once per release on any Windows
-machine:
+GitHub Releases publish two files:
+
+- `Clinikore-Setup-<version>-win-x64.exe` — most Windows 7/10/11 laptops.
+- `Clinikore-Setup-<version>-win-x86.exe` — only for 32-bit Windows.
+
+If unsure, try `win-x64` first. If Windows says the installer is not compatible
+with the computer, use `win-x86`.
+
+**You** (the developer) can also build installers locally on a Windows machine
+with Python 3.8.10 installed for the target architecture:
 
 ```cmd
-installer\build.bat
+installer\build.bat x64
+installer\build.bat x86
 ```
 
-It chains PyInstaller (bundles Python + all deps + the React UI into one
-folder) and Inno Setup 6 (wraps that into a signed-ready Setup wizard). The
-resulting `dist\installer\Clinikore-Setup-<version>.exe` is the only file
-the doctor needs. See `installer/README.md` for full build instructions,
-prerequisites, version bumps, and code-signing notes.
+It chains PyInstaller (bundles a Windows 7-compatible Python 3.8 runtime + all
+deps + the React UI into one folder) and Inno Setup 6 (wraps that into a
+signed-ready Setup wizard). The resulting files in `dist\installer\` support
+Windows 7 SP1, Windows 10, and Windows 11. See `installer/README.md` for full
+build instructions, prerequisites, version bumps, and code-signing notes.
 
 ### macOS / Linux — zip + script (simpler, works today)
 
@@ -116,10 +129,11 @@ If you don't want to bother with Inno Setup, you can also ship the source
 zip and tell the Windows doctor to double-click `scripts\install.bat` (it
 creates a Desktop shortcut) and then the `Clinikore` icon on their Desktop.
 This needs Python on their machine but is a simpler build-time story for you.
+Use Python 3.8.10 on Windows 7; Python 3.12+ is fine on Windows 10/11.
 
 ## First-time setup (manual)
 
-### 1. Backend (Python 3.10+)
+### 1. Backend (Python 3.10+; Windows source installs support 3.8+)
 
 **macOS / Linux**
 ```bash

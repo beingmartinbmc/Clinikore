@@ -3,9 +3,11 @@
 # Run from the project root on a WINDOWS machine:
 #   pyinstaller --clean --noconfirm installer/clinikore.spec
 #
-# Output: dist\Clinikore\Clinikore.exe  (plus a folder of runtime files)
-# Feed that into Inno Setup to produce Clinikore-Setup.exe.
+# Output: dist\Clinikore-win-x64\Clinikore.exe or
+#         dist\Clinikore-win-x86\Clinikore.exe  (plus runtime files)
+# Feed that into Inno Setup to produce the architecture-specific Setup.exe.
 
+import os
 from pathlib import Path
 
 # `SPECPATH` is injected by PyInstaller and points at this spec's directory.
@@ -15,6 +17,8 @@ ROOT = Path(SPECPATH).parent
 ENTRY = str(ROOT / "launcher.py")
 FRONTEND_DIST = str(ROOT / "frontend" / "dist")
 ICON = str(ROOT / "assets" / "clinikore.ico")
+BUILD_SUFFIX = os.environ.get("CLINIKORE_BUILD_SUFFIX", "win-x64")
+DIST_NAME = f"Clinikore-{BUILD_SUFFIX}"
 
 # If no custom icon is present, skip the icon argument.
 icon_arg = ICON if Path(ICON).is_file() else None
@@ -88,5 +92,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="Clinikore",
+    name=DIST_NAME,
 )

@@ -2,17 +2,28 @@
 ; ---------------------------
 ; Compile with Inno Setup 6 (https://jrsoftware.org/isinfo.php).
 ;
-; Expects that PyInstaller has already produced `dist\Clinikore\` in the
-; project root. Run installer\build.bat to do both steps in one go.
+; Expects that PyInstaller has already produced an architecture-specific folder
+; under `dist\` (for example `dist\Clinikore-win-x64\`). Run
+; installer\build.bat to do both steps in one go.
 ;
-; Produces:    dist\installer\Clinikore-Setup-<version>.exe
+; Produces:    dist\installer\Clinikore-Setup-<version>-win-x64.exe
+;              dist\installer\Clinikore-Setup-<version>-win-x86.exe
 ; Install into: %LOCALAPPDATA%\Programs\Clinikore  (per-user, no admin)
 
 #define AppName      "Clinikore"
 ; AppVersion can be overridden from the command line with
 ; /DAppVersion=x.y.z (used by CI so the tag drives the installer version).
 #ifndef AppVersion
-  #define AppVersion "0.2.0"
+  #define AppVersion "0.3.1"
+#endif
+#ifndef AppArch
+  #define AppArch "x64"
+#endif
+#ifndef OutputSuffix
+  #define OutputSuffix "win-x64"
+#endif
+#ifndef SourceDir
+  #define SourceDir "Clinikore-win-x64"
 #endif
 #define AppPublisher "Clinikore"
 #define AppURL       "https://example.com"
@@ -37,7 +48,11 @@ DisableProgramGroupPage=yes
 DisableDirPage=auto
 
 OutputDir=..\dist\installer
-OutputBaseFilename=Clinikore-Setup-{#AppVersion}
+OutputBaseFilename=Clinikore-Setup-{#AppVersion}-{#OutputSuffix}
+
+; Windows 7 SP1 is the oldest supported target. The bundled Python runtime is
+; intentionally Python 3.8.x because newer python.org runtimes dropped Win7.
+MinVersion=6.1sp1
 
 ; Nice modern look
 WizardStyle=modern
@@ -54,9 +69,12 @@ UninstallDisplayName={#AppName}
 Compression=lzma2/ultra
 SolidCompression=yes
 
-; 64-bit only (matches our Python build)
+; x64 installers are restricted to 64-bit-capable Windows. x86 installers leave
+; these directives unset, so they run on 32-bit Windows and under WOW64.
+#if AppArch == "x64"
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -67,8 +85,8 @@ Name: "desktopicon"; \
   GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-; Everything PyInstaller produced under dist\Clinikore\ ships as-is.
-Source: "..\dist\Clinikore\*"; \
+; Everything PyInstaller produced under the selected dist folder ships as-is.
+Source: "..\dist\{#SourceDir}\*"; \
   DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
 

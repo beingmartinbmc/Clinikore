@@ -12,7 +12,9 @@ This file is the **desktop entry point**; the HTTP API itself lives in
 from __future__ import annotations
 
 import logging
+import os
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -82,6 +84,78 @@ log = logging.getLogger("clinikore")
 HOST = "127.0.0.1"
 
 
+def _windows_version() -> Optional[tuple[int, int, int]]:
+    if sys.platform != "win32":
+        return None
+    getwindowsversion = getattr(sys, "getwindowsversion", None)
+    if getwindowsversion is None:
+        return None
+    version = getwindowsversion()
+    return version.major, version.minor, version.build
+
+
+def _is_legacy_windows() -> bool:
+    version = _windows_version()
+    if version is None:
+        return False
+    # Windows 7 is 6.1. Edge WebView2 is no longer supported there, so use
+    # the system browser instead of trying to create a native WebView2 window.
+    return version[:2] <= (6, 1)
+
+
+def _find_chrome_exe() -> Optional[str]:
+    candidates = []
+    for base in (
+        os.environ.get("PROGRAMFILES"),
+        os.environ.get("PROGRAMFILES(X86)"),
+        os.environ.get("LOCALAPPDATA"),
+    ):
+        if base:
+            candidates.append(
+                os.path.join(base, "Google", "Chrome", "Application", "chrome.exe")
+            )
+            candidates.append(
+                os.path.join(base, "Chromium", "Application", "chrome.exe")
+            )
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def _open_external_browser(url: str) -> None:
+    """Open a browser-backed app window and block while it is running."""
+    if sys.platform == "win32":
+        chrome = _find_chrome_exe()
+        if chrome:
+            profile_root = os.environ.get("LOCALAPPDATA") or os.path.expanduser(
+                "~\\AppData\\Local"
+            )
+            profile_dir = os.path.join(profile_root, "Clinikore", "BrowserProfile")
+            os.makedirs(profile_dir, exist_ok=True)
+            log.info("Opening Chrome app window: %s", chrome)
+            proc = subprocess.Popen([
+                chrome,
+                f"--app={url}",
+                "--new-window",
+                "--no-first-run",
+                f"--user-data-dir={profile_dir}",
+            ])
+            proc.wait()
+            return
+
+    log.warning("Opening default browser; close Clinikore from Task Manager if needed.")
+    import webbrowser
+    webbrowser.open(url)
+    # Keep the embedded backend alive while the browser tab is open. With the
+    # stdlib `webbrowser` fallback we cannot observe tab/window close events.
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        pass
+
+
 def _find_free_port(default: int = 8765) -> int:
     # Try the default first so bookmarks / dev tooling work; fall back to random.
     for candidate in (default, 0):
@@ -131,18 +205,16 @@ def _wait_until_ready(port: int, timeout: float = 10.0) -> bool:
 
 
 def _open_window(url: str) -> None:
+    if _is_legacy_windows():
+        log.warning("Windows 7 detected; using browser mode instead of WebView2.")
+        _open_external_browser(url)
+        return
+
     try:
         import webview  # pywebview
     except ImportError:
         log.warning("pywebview not installed; opening in default browser instead.")
-        import webbrowser
-        webbrowser.open(url)
-        # Block forever so the server thread keeps running.
-        try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            pass
+        _open_external_browser(url)
         return
 
     webview.create_window(

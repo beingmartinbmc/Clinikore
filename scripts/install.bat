@@ -18,15 +18,16 @@ echo ================================================
 echo.
 
 REM --- [1/5] Python -------------------------------------------
-REM We require Python 3.9 - 3.13. Python 3.14 is skipped because
-REM pydantic-core doesn't ship wheels for it yet.
-echo [1/5] Checking for Python 3.9-3.13...
+REM Source-based installs support Python 3.8 - 3.13. On Windows 7, Python
+REM MUST be 3.8.x because newer python.org runtimes cannot load there.
+echo [1/5] Checking for Python 3.8-3.13...
 where python >nul 2>nul
 if errorlevel 1 (
   echo   [X] Python is not installed or not on PATH.
   echo.
-  echo       Please install Python 3.12 from:
-  echo           https://www.python.org/downloads/windows/
+  echo       Please install Python from:
+  echo           Windows 7:  Python 3.8.10  https://www.python.org/downloads/release/python-3810/
+  echo           Win 10/11:  Python 3.12+   https://www.python.org/downloads/windows/
   echo       During install, TICK the checkbox:
   echo           "Add python.exe to PATH"
   echo.
@@ -40,13 +41,23 @@ if not defined VCODE (
   echo   [X] Could not read Python version.
   goto :error
 )
-if %VCODE% LSS 309 (
-  echo   [X] Python %VCODE% is too old. Install Python 3.12 from python.org.
+if %VCODE% LSS 308 (
+  echo   [X] Python %VCODE% is too old.
+  echo       Install Python 3.8.10 on Windows 7, or Python 3.12+ on Win 10/11.
   goto :error
 )
 if %VCODE% GTR 313 (
   echo   [X] Python version is too new for the current dependency pins.
   echo       Install Python 3.12 or 3.13 from python.org alongside your current one.
+  goto :error
+)
+set "IS_WIN7="
+for /f %%V in ('python -c "import sys; v=sys.getwindowsversion(); print(1 if (v.major, v.minor) ^<^= (6, 1) else 0)" 2^>nul') do set "IS_WIN7=%%V"
+if "%IS_WIN7%"=="1" if not "%VCODE%"=="308" (
+  echo   [X] Windows 7 requires Python 3.8.x.
+  echo       Newer Python versions cannot load on Windows 7.
+  echo       Install Python 3.8.10 from:
+  echo       https://www.python.org/downloads/release/python-3810/
   goto :error
 )
 for /f "delims=" %%V in ('python --version 2^>^&1') do set "PYVER=%%V"

@@ -1,7 +1,8 @@
 name: Release - Windows Installer
 
-# Builds Clinikore-Setup-<version>.exe on a Windows runner and attaches it
-# to a GitHub Release.
+# Builds x64 and x86 Clinikore installers with Python 3.8.10 so the packaged
+# runtime starts on Windows 7 SP1, Windows 10, and Windows 11. Attaches both
+# installers to a GitHub Release.
 #
 # Trigger:
 #   - Push a tag matching `v*` (e.g. git tag v0.1.0 && git push --tags)
@@ -25,15 +26,13 @@ permissions:
   contents: write   # needed to create GitHub Releases & tags
 
 jobs:
-  build-installer:
-    name: Build Windows installer
-    runs-on: windows-latest
+  resolve-version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
-          fetch-depth: 0
-
       # ------------------------------------------------------------------
       # Resolve the version + tag once, drive the whole build from it.
       #   - Tag push (v0.1.0)  -> version="0.1.0"   tag="v0.1.0"
@@ -42,22 +41,48 @@ jobs:
       - name: Resolve version
         id: version
         shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
             TAG="${GITHUB_REF#refs/tags/}"
           else
-            VERSION="${{ inputs.version }}"
+            VERSION="${INPUT_VERSION}"
             TAG="v${VERSION}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}"         >> $GITHUB_OUTPUT
           echo "::notice::Building Clinikore ${VERSION} (tag ${TAG})"
 
-      - name: Set up Python 3.12
+  build-installer:
+    name: Build Windows installer (${{ matrix.suffix }})
+    runs-on: windows-latest
+    needs: resolve-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python_arch: x64
+            app_arch: x64
+            suffix: win-x64
+          - python_arch: x86
+            app_arch: x86
+            suffix: win-x86
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Python 3.8.10
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          # Python 3.8.10 is the last python.org Windows runtime with Win7
+          # support. Build once per CPU architecture because PyInstaller embeds
+          # the active Python interpreter into the app bundle.
+          python-version: "3.8.10"
+          architecture: ${{ matrix.python_arch }}
           cache: pip
 
       - name: Set up Node 20
@@ -83,6 +108,8 @@ jobs:
 
       - name: Run PyInstaller
         shell: cmd
+        env:
+          CLINIKORE_BUILD_SUFFIX: ${{ matrix.suffix }}
         run: pyinstaller --clean --noconfirm installer\clinikore.spec
 
       # /DAppVersion overrides the #define in installer.iss, so the output
@@ -91,13 +118,18 @@ jobs:
       - name: Run Inno Setup
         shell: cmd
         run: |
-          "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.version.outputs.version }} installer\installer.iss
+          "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" ^
+            /DAppVersion=${{ needs.resolve-version.outputs.version }} ^
+            /DAppArch=${{ matrix.app_arch }} ^
+            /DOutputSuffix=${{ matrix.suffix }} ^
+            /DSourceDir=Clinikore-${{ matrix.suffix }} ^
+            installer\installer.iss
 
       - name: Find built installer
         id: find
         shell: pwsh
         run: |
-          $exe = Get-ChildItem dist\installer\*.exe | Select-Object -First 1
+          $exe = Get-ChildItem dist\installer\*-${{ matrix.suffix }}.exe | Select-Object -First 1
           if (-not $exe) { Write-Error "Setup.exe not produced"; exit 1 }
           echo "path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
           echo "name=$($exe.Name)"    >> $env:GITHUB_OUTPUT
@@ -110,14 +142,27 @@ jobs:
           path: ${{ steps.find.outputs.path }}
           retention-days: 30
 
+  publish-release:
+    name: Publish Windows release
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-version
+      - build-installer
+    steps:
+      - name: Download installers
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
       # Always create / update a GitHub Release. softprops/action-gh-release
       # will create the tag if it doesn't already exist — so manual dispatch
       # runs also produce a real Release, not just an Actions artifact.
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "Clinikore ${{ steps.version.outputs.version }}"
-          files: ${{ steps.find.outputs.path }}
+          tag_name: ${{ needs.resolve-version.outputs.tag }}
+          name: "Clinikore ${{ needs.resolve-version.outputs.version }}"
+          files: release-assets/*.exe
           generate_release_notes: true
           fail_on_unmatched_files: true

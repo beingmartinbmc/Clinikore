@@ -476,3 +476,40 @@ def test_reminder_stubs_return_true():
     """The stubs themselves should return True to keep the UI green."""
     assert services._send_sms("+91 98 000 00000", "test") is True
     assert services._send_whatsapp("+91 98 000 00000", "test") is True
+
+
+# ===========================================================================
+# launcher.py — Windows 7 compatibility branch
+# ===========================================================================
+def test_launcher_detects_windows_7_as_legacy(monkeypatch):
+    import launcher
+
+    class Version:
+        major = 6
+        minor = 1
+        build = 7601
+
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setattr(
+        launcher.sys, "getwindowsversion", lambda: Version(), raising=False
+    )
+
+    assert launcher._windows_version() == (6, 1, 7601)
+    assert launcher._is_legacy_windows() is True
+
+
+def test_launcher_does_not_treat_windows_10_as_legacy(monkeypatch):
+    import launcher
+
+    class Version:
+        major = 10
+        minor = 0
+        build = 19045
+
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setattr(
+        launcher.sys, "getwindowsversion", lambda: Version(), raising=False
+    )
+
+    assert launcher._windows_version() == (10, 0, 19045)
+    assert launcher._is_legacy_windows() is False
