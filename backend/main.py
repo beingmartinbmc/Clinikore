@@ -90,11 +90,12 @@ from backend.models import (
 from backend import services
 from backend import reports as reports_svc
 from backend import audit_db
+from backend.pydantic_compat import model_dump, model_validate
 from backend.undo import buffer as undo_buffer
 
 
 BACKUP_DIR = APP_DIR / "backups"
-APP_VERSION = "0.3.1"
+APP_VERSION = "0.3.2"
 _scheduler: Optional[backup_svc.BackupScheduler] = None
 
 log = logging.getLogger("clinikore")
@@ -498,7 +499,7 @@ def list_patients(
 
 @app.post("/api/patients", response_model=PatientRead, status_code=201)
 def create_patient(payload: PatientCreate, s: Session = Depends(get_session)):
-    p = Patient.model_validate(payload)
+    p = model_validate(Patient, payload)
     s.add(p)
     s.commit()
     s.refresh(p)
@@ -523,8 +524,8 @@ def update_patient(pid: int, payload: PatientCreate, s: Session = Depends(get_se
     p = s.get(Patient, pid)
     if not p or p.deleted_at is not None:
         raise HTTPException(404, "Patient not found")
-    changed = list(payload.model_dump(exclude_unset=True).keys())
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    changed = list(model_dump(payload, exclude_unset=True).keys())
+    for k, v in model_dump(payload, exclude_unset=True).items():
         setattr(p, k, v)
     s.add(p)
     s.commit()
@@ -571,7 +572,7 @@ def create_procedure(payload: ProcedureCreate, s: Session = Depends(get_session)
     if not (payload.category or "").strip():
         raise HTTPException(422, "Category is required for every procedure")
     payload.category = payload.category.strip()
-    p = Procedure.model_validate(payload)
+    p = model_validate(Procedure, payload)
     s.add(p)
     s.commit()
     s.refresh(p)
@@ -612,7 +613,7 @@ def update_procedure(pid: int, payload: ProcedureCreate, s: Session = Depends(ge
     p = s.get(Procedure, pid)
     if not p:
         raise HTTPException(404, "Procedure not found")
-    patch = payload.model_dump(exclude_unset=True)
+    patch = model_dump(payload, exclude_unset=True)
     # Guard against blanking the category on an existing row.
     if "category" in patch and not (patch.get("category") or "").strip():
         raise HTTPException(422, "Category is required for every procedure")
@@ -655,7 +656,7 @@ def list_rooms(active_only: bool = False, s: Session = Depends(get_session)):
 
 @app.post("/api/rooms", response_model=RoomRead, status_code=201)
 def create_room(payload: RoomCreate, s: Session = Depends(get_session)):
-    r = Room.model_validate(payload)
+    r = model_validate(Room, payload)
     s.add(r)
     s.commit()
     s.refresh(r)
@@ -669,7 +670,7 @@ def update_room(rid: int, payload: RoomCreate, s: Session = Depends(get_session)
     r = s.get(Room, rid)
     if not r:
         raise HTTPException(404, "Room not found")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    for k, v in model_dump(payload, exclude_unset=True).items():
         setattr(r, k, v)
     s.add(r)
     s.commit()
@@ -774,7 +775,7 @@ def list_appointments(
 def create_appointment(payload: AppointmentCreate, s: Session = Depends(get_session)):
     if not s.get(Patient, payload.patient_id):
         raise HTTPException(400, "Invalid patient_id")
-    a = Appointment.model_validate(payload)
+    a = model_validate(Appointment, payload)
     s.add(a)
     s.commit()
     s.refresh(a)
@@ -793,7 +794,7 @@ def update_appointment(aid: int, payload: AppointmentCreate, s: Session = Depend
     a = s.get(Appointment, aid)
     if not a or a.deleted_at is not None:
         raise HTTPException(404, "Appointment not found")
-    data = payload.model_dump(exclude_unset=True)
+    data = model_dump(payload, exclude_unset=True)
     # `reminder_sent` is a server-managed field; ignore client attempts to set it.
     data.pop("reminder_sent", None)
     for k, v in data.items():
@@ -940,7 +941,7 @@ def upsert_appointment_note(
         .where(ConsultationNote.appointment_id == aid)
         .where(ConsultationNote.deleted_at.is_(None))
     ).first()
-    data = payload.model_dump(exclude_unset=True)
+    data = model_dump(payload, exclude_unset=True)
     if n is None:
         n = ConsultationNote(
             patient_id=a.patient_id,
@@ -1090,7 +1091,7 @@ def create_consult_note(
         a = s.get(Appointment, payload.appointment_id)
         if not a or a.deleted_at is not None:
             raise HTTPException(400, "Invalid appointment_id")
-    n = ConsultationNote.model_validate(payload)
+    n = model_validate(ConsultationNote, payload)
     s.add(n)
     s.commit()
     s.refresh(n)
@@ -1124,7 +1125,7 @@ def update_consult_note(
     n = s.get(ConsultationNote, nid)
     if not n or n.deleted_at is not None:
         raise HTTPException(404, "Note not found")
-    data = payload.model_dump(exclude_unset=True)
+    data = model_dump(payload, exclude_unset=True)
     for k, v in data.items():
         setattr(n, k, v)
     n.updated_at = utcnow()
@@ -1678,7 +1679,7 @@ def create_treatment(payload: TreatmentCreate, s: Session = Depends(get_session)
     proc = s.get(Procedure, payload.procedure_id)
     if not proc:
         raise HTTPException(400, "Invalid procedure_id")
-    t = Treatment.model_validate(payload)
+    t = model_validate(Treatment, payload)
     if not t.price:
         t.price = proc.default_price
     s.add(t)
@@ -1821,7 +1822,7 @@ def update_treatment_plan(
     plan = s.get(TreatmentPlan, plan_id)
     if not plan or plan.deleted_at is not None:
         raise HTTPException(404, "Plan not found")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    for k, v in model_dump(payload, exclude_unset=True).items():
         setattr(plan, k, v)
     plan.updated_at = utcnow()
     s.add(plan)
@@ -1929,7 +1930,7 @@ def update_plan_step(
     step = s.get(TreatmentPlanStep, step_id)
     if not step:
         raise HTTPException(404, "Step not found")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    for k, v in model_dump(payload, exclude_unset=True).items():
         setattr(step, k, v)
     s.add(step)
     plan = s.get(TreatmentPlan, step.plan_id)
@@ -2116,7 +2117,7 @@ def update_invoice(iid: int, payload: InvoiceUpdate, s: Session = Depends(get_se
     inv = s.get(Invoice, iid)
     if not inv or inv.deleted_at is not None:
         raise HTTPException(404, "Invoice not found")
-    data = payload.model_dump(exclude_unset=True)
+    data = model_dump(payload, exclude_unset=True)
     if "notes" in data:
         inv.notes = data["notes"]
     if "discount_amount" in data:
@@ -2787,7 +2788,7 @@ def get_settings(s: Session = Depends(get_session)):
 def update_settings(payload: SettingsUpdate, s: Session = Depends(get_session)):
     row = _get_or_create_settings(s)
     changed = []
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    for k, v in model_dump(payload, exclude_unset=True).items():
         if getattr(row, k, None) != v:
             setattr(row, k, v)
             changed.append(k)

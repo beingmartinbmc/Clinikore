@@ -50,8 +50,9 @@ doctor-helper/
 | OS | Python | WebView backend | Extra steps |
 |----|--------|-----------------|-------------|
 | macOS 11+ | 3.10+ | Cocoa WebKit (built-in) | none |
-| Windows 7 SP1 x86 | bundled Python 3.8.10 32-bit | Chrome/default browser fallback | download the `win-x86` installer; install Chrome/Chromium if no default browser is available |
-| Windows 7 SP1 x64 | bundled Python 3.8.10 64-bit | Chrome/default browser fallback | download the `win-x64` installer; install Chrome/Chromium if no default browser is available |
+| Windows 7 SP1 x86 (patched) | bundled Python 3.8.10 32-bit | Chrome/default browser fallback | try `win-x86`; if Python DLL/procedure errors appear, use `win7-legacy-x86` |
+| Windows 7 SP1 x64 (patched) | bundled Python 3.8.10 64-bit | Chrome/default browser fallback | try `win-x64`; if Python DLL/procedure errors appear, use `win7-legacy-x64` |
+| Windows 7 SP1 base/unpatched | bundled Python 3.7.9 + Pydantic v1 | Chrome/default browser fallback | download the matching `win7-legacy-*` installer; install Chrome/Chromium if no default browser is available |
 | Windows 10/11 x86 | bundled Python 3.8.10 32-bit for packaged installer; 3.8-3.13 for source installs | Edge WebView2 | download the `win-x86` installer; [install WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) if missing |
 | Windows 10/11 x64 | bundled Python 3.8.10 for packaged installer; 3.8-3.13 for source installs | Edge WebView2 (built-in on Win 11/recent Win 10) | [Install WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) if missing |
 | Linux (Ubuntu/Fedora/Arch) | 3.10+ | Qt (PyQt5) | `sudo apt install libxcb-xinerama0 libgl1` (Debian/Ubuntu) |
@@ -86,13 +87,17 @@ The doctor downloads the installer that matches their Windows architecture,
 double-clicks it, and gets a real Windows install wizard with Desktop + Start
 Menu shortcuts. Zero Python, zero Node, zero scripts on their machine.
 
-GitHub Releases publish two files:
+GitHub Releases publish four Windows files:
 
 - `Clinikore-Setup-<version>-win-x64.exe` — most Windows 7/10/11 laptops.
 - `Clinikore-Setup-<version>-win-x86.exe` — only for 32-bit Windows.
+- `Clinikore-Setup-<version>-win7-legacy-x64.exe` — 64-bit base/unpatched Windows 7.
+- `Clinikore-Setup-<version>-win7-legacy-x86.exe` — 32-bit base/unpatched Windows 7.
 
 If unsure, try `win-x64` first. If Windows says the installer is not compatible
-with the computer, use `win-x86`.
+with the computer, use `win-x86`. If Windows 7 shows `Failed to load Python DLL`
+or `The specified procedure could not be found`, use the matching
+`win7-legacy-*` installer.
 
 **You** (the developer) can also build installers locally on a Windows machine
 with Python 3.8.10 installed for the target architecture:
@@ -100,13 +105,15 @@ with Python 3.8.10 installed for the target architecture:
 ```cmd
 installer\build.bat x64
 installer\build.bat x86
+installer\build.bat win7-legacy-x64
+installer\build.bat win7-legacy-x86
 ```
 
-It chains PyInstaller (bundles a Windows 7-compatible Python 3.8 runtime + all
-deps + the React UI into one folder) and Inno Setup 6 (wraps that into a
-signed-ready Setup wizard). The resulting files in `dist\installer\` support
-Windows 7 SP1, Windows 10, and Windows 11. See `installer/README.md` for full
-build instructions, prerequisites, version bumps, and code-signing notes.
+It chains PyInstaller (bundles the selected Python runtime + all deps + the
+React UI into one folder) and Inno Setup 6 (wraps that into a signed-ready
+Setup wizard). The resulting files in `dist\installer\` support Windows 7 SP1,
+Windows 10, and Windows 11. See `installer/README.md` for full build
+instructions, prerequisites, version bumps, and code-signing notes.
 
 ### macOS / Linux — zip + script (simpler, works today)
 

@@ -4,17 +4,22 @@ REM Clinikore — Windows installer builder
 REM
 REM Produces:  dist\installer\Clinikore-Setup-<version>-win-x64.exe
 REM            dist\installer\Clinikore-Setup-<version>-win-x86.exe
+REM            dist\installer\Clinikore-Setup-<version>-win7-legacy-x64.exe
+REM            dist\installer\Clinikore-Setup-<version>-win7-legacy-x86.exe
 REM
 REM Usage:
 REM   installer\build.bat       (defaults to x64)
 REM   installer\build.bat x64
 REM   installer\build.bat x86
+REM   installer\build.bat win7-legacy-x64
+REM   installer\build.bat win7-legacy-x86
 REM
 REM Run this ONCE (per release) on a Windows machine. The doctor
 REM never sees this — they only see the produced Setup.exe.
 REM
 REM Prerequisites on the build machine (one-time):
-REM   1. Python 3.8.10 from python.org (x64 for x64 builds, x86 for x86 builds)
+REM   1. Python 3.8.10 for modern builds; Python 3.7.9 for win7-legacy builds
+REM      (install x64 or x86 to match the target)
 REM   2. Node.js LTS from nodejs.org
 REM   3. Inno Setup 6 from https://jrsoftware.org/isinfo.php
 REM ============================================================
@@ -28,20 +33,50 @@ set "ROOT=%CD%"
 set "TARGET_ARCH=%~1"
 if "%TARGET_ARCH%"=="" set "TARGET_ARCH=x64"
 if /I "%TARGET_ARCH%"=="amd64" set "TARGET_ARCH=x64"
+if /I "%TARGET_ARCH%"=="legacy-x64" set "TARGET_ARCH=win7-legacy-x64"
+if /I "%TARGET_ARCH%"=="legacy-x86" set "TARGET_ARCH=win7-legacy-x86"
 if /I "%TARGET_ARCH%"=="x64" (
   set "TARGET_ARCH=x64"
   set "BUILD_SUFFIX=win-x64"
   set "EXPECTED_BITS=64"
+  set "PY_VERSION=3.8"
+  set "PY_VCODE=308"
   set "PYTHON_CMD=py -3.8-64"
+  set "REQUIREMENTS_FILE=requirements.txt"
+  set "EXTRA_PACKAGES=pyinstaller"
 ) else if /I "%TARGET_ARCH%"=="x86" (
   set "TARGET_ARCH=x86"
   set "BUILD_SUFFIX=win-x86"
   set "EXPECTED_BITS=32"
+  set "PY_VERSION=3.8"
+  set "PY_VCODE=308"
   set "PYTHON_CMD=py -3.8-32"
+  set "REQUIREMENTS_FILE=requirements.txt"
+  set "EXTRA_PACKAGES=pyinstaller"
+) else if /I "%TARGET_ARCH%"=="win7-legacy-x64" (
+  set "TARGET_ARCH=x64"
+  set "BUILD_SUFFIX=win7-legacy-x64"
+  set "EXPECTED_BITS=64"
+  set "PY_VERSION=3.7"
+  set "PY_VCODE=307"
+  set "PYTHON_CMD=py -3.7-64"
+  set "REQUIREMENTS_FILE=requirements-win7-legacy.txt"
+  set "EXTRA_PACKAGES="
+) else if /I "%TARGET_ARCH%"=="win7-legacy-x86" (
+  set "TARGET_ARCH=x86"
+  set "BUILD_SUFFIX=win7-legacy-x86"
+  set "EXPECTED_BITS=32"
+  set "PY_VERSION=3.7"
+  set "PY_VCODE=307"
+  set "PYTHON_CMD=py -3.7-32"
+  set "REQUIREMENTS_FILE=requirements-win7-legacy.txt"
+  set "EXTRA_PACKAGES="
 ) else (
   echo   [X] Unknown architecture "%TARGET_ARCH%".
   echo       Use: installer\build.bat x64
   echo        or: installer\build.bat x86
+  echo        or: installer\build.bat win7-legacy-x64
+  echo        or: installer\build.bat win7-legacy-x86
   goto :error
 )
 
@@ -55,28 +90,27 @@ REM --- [1/5] Python deps (incl. PyInstaller) ------------------
 echo [1/5] Python dependencies...
 %PYTHON_CMD% --version >nul 2>nul
 if errorlevel 1 (
-  set "PYTHON_CMD=py -3.8"
-  py -3.8 --version >nul 2>nul
+  set "PYTHON_CMD=py -%PY_VERSION%"
+  py -%PY_VERSION% --version >nul 2>nul
 )
 if errorlevel 1 (
   set "PYTHON_CMD=python"
 )
 
 %PYTHON_CMD% --version >nul 2>nul || (
-  echo   [X] Python 3.8 was not found.
-  echo       Install Python 3.8.10 (%EXPECTED_BITS%-bit) from:
-  echo       https://www.python.org/downloads/release/python-3810/
+  echo   [X] Python %PY_VERSION% was not found.
+  echo       Install Python %PY_VERSION% (%EXPECTED_BITS%-bit) from python.org.
   goto :error
 )
 
 set "VCODE="
 for /f %%V in ('%PYTHON_CMD% -c "import sys;print(sys.version_info[0]*100+sys.version_info[1])" 2^>nul') do set "VCODE=%%V"
-if not "%VCODE%"=="308" (
-  echo   [X] The Windows installer must be built with Python 3.8.x.
+if not "%VCODE%"=="%PY_VCODE%" (
+  echo   [X] The %BUILD_SUFFIX% installer must be built with Python %PY_VERSION%.x.
   echo       Found:
   %PYTHON_CMD% --version
   echo.
-  echo       Python 3.8.10 is the last python.org Windows runtime that supports Windows 7.
+  echo       Use the matching Python version for this target.
   goto :error
 )
 
@@ -97,8 +131,8 @@ if exist .venv\Scripts\python.exe (
   for /f %%V in ('.venv\Scripts\python.exe -c "import sys;print(sys.version_info[0]*100+sys.version_info[1])" 2^>nul') do set "VENV_VCODE=%%V"
   set "VENV_BITS="
   for /f %%V in ('.venv\Scripts\python.exe -c "import sys;print(64 if sys.maxsize ^> 2**32 else 32)" 2^>nul') do set "VENV_BITS=%%V"
-  if not "!VENV_VCODE!"=="308" (
-    echo   [!] Existing .venv was not Python 3.8; recreating it.
+  if not "!VENV_VCODE!"=="%PY_VCODE%" (
+    echo   [!] Existing .venv was not Python %PY_VERSION%; recreating it.
     rmdir /s /q .venv
   ) else if not "!VENV_BITS!"=="%EXPECTED_BITS%" (
     echo   [!] Existing .venv was not %EXPECTED_BITS%-bit; recreating it.
@@ -109,7 +143,7 @@ if exist .venv\Scripts\python.exe (
 if not exist .venv ( %PYTHON_CMD% -m venv .venv )
 call .venv\Scripts\activate.bat
 python -m pip install --upgrade pip >nul
-python -m pip install --upgrade -r requirements.txt pyinstaller
+python -m pip install --upgrade -r "%REQUIREMENTS_FILE%" %EXTRA_PACKAGES%
 if errorlevel 1 goto :error
 
 REM --- [2/5] Frontend build ----------------------------------

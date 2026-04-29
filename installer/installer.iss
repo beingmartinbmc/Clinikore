@@ -8,13 +8,15 @@
 ;
 ; Produces:    dist\installer\Clinikore-Setup-<version>-win-x64.exe
 ;              dist\installer\Clinikore-Setup-<version>-win-x86.exe
+;              dist\installer\Clinikore-Setup-<version>-win7-legacy-x64.exe
+;              dist\installer\Clinikore-Setup-<version>-win7-legacy-x86.exe
 ; Install into: %LOCALAPPDATA%\Programs\Clinikore  (per-user, no admin)
 
 #define AppName      "Clinikore"
 ; AppVersion can be overridden from the command line with
 ; /DAppVersion=x.y.z (used by CI so the tag drives the installer version).
 #ifndef AppVersion
-  #define AppVersion "0.3.1"
+  #define AppVersion "0.3.2"
 #endif
 #ifndef AppArch
   #define AppArch "x64"
@@ -50,8 +52,8 @@ DisableDirPage=auto
 OutputDir=..\dist\installer
 OutputBaseFilename=Clinikore-Setup-{#AppVersion}-{#OutputSuffix}
 
-; Windows 7 SP1 is the oldest supported target. The bundled Python runtime is
-; intentionally Python 3.8.x because newer python.org runtimes dropped Win7.
+; Windows 7 SP1 is the oldest supported target. Base/unpatched Win7 should use
+; the win7-legacy builds, which bundle Python 3.7.9 and Pydantic v1.
 MinVersion=6.1sp1
 
 ; Nice modern look

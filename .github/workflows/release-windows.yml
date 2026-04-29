@@ -1,8 +1,8 @@
 name: Release - Windows Installer
 
-# Builds x64 and x86 Clinikore installers with Python 3.8.10 so the packaged
-# runtime starts on Windows 7 SP1, Windows 10, and Windows 11. Attaches both
-# installers to a GitHub Release.
+# Builds modern x64/x86 installers plus Python 3.7 legacy Windows 7 installers.
+# The legacy artifacts avoid Python 3.8's DLL loader behavior and Pydantic v2's
+# Rust-backed pydantic-core on base/unpatched Windows 7.
 #
 # Trigger:
 #   - Push a tag matching `v*` (e.g. git tag v0.1.0 && git push --tags)
@@ -63,25 +63,42 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - python_arch: x64
+          - python_version: "3.8.10"
+            python_arch: x64
             app_arch: x64
             suffix: win-x64
-          - python_arch: x86
+            requirements: requirements.txt
+            extra_packages: pyinstaller
+          - python_version: "3.8.10"
+            python_arch: x86
             app_arch: x86
             suffix: win-x86
+            requirements: requirements.txt
+            extra_packages: pyinstaller
+          - python_version: "3.7.9"
+            python_arch: x64
+            app_arch: x64
+            suffix: win7-legacy-x64
+            requirements: requirements-win7-legacy.txt
+            extra_packages: ""
+          - python_version: "3.7.9"
+            python_arch: x86
+            app_arch: x86
+            suffix: win7-legacy-x86
+            requirements: requirements-win7-legacy.txt
+            extra_packages: ""
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
 
-      - name: Set up Python 3.8.10
+      - name: Set up Python ${{ matrix.python_version }}
         uses: actions/setup-python@v5
         with:
-          # Python 3.8.10 is the last python.org Windows runtime with Win7
-          # support. Build once per CPU architecture because PyInstaller embeds
-          # the active Python interpreter into the app bundle.
-          python-version: "3.8.10"
+          # Build once per Python version and CPU architecture because
+          # PyInstaller embeds the active interpreter into the app bundle.
+          python-version: ${{ matrix.python_version }}
           architecture: ${{ matrix.python_arch }}
           cache: pip
 
@@ -98,7 +115,14 @@ jobs:
       - name: Install Python deps + PyInstaller
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r ${{ matrix.requirements }} ${{ matrix.extra_packages }}
+
+      - name: Validate legacy backend on Python 3.7
+        if: startsWith(matrix.suffix, 'win7-legacy')
+        run: |
+          python -m compileall -q backend launcher.py
+          python -c "from backend.main import app; print('FastAPI app:', app.title, app.version)"
+          pytest -q
 
       - name: Build frontend
         working-directory: frontend

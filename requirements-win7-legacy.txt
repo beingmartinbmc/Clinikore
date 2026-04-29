@@ -1,0 +1,20 @@
+fastapi==0.95.2
+uvicorn==0.22.0
+sqlmodel==0.0.8
+SQLAlchemy==1.4.41
+pydantic==1.10.15
+reportlab==3.6.13
+python-multipart==0.0.9
+httpx==0.24.1
+anyio==3.7.1
+typing-extensions==4.7.1
+
+# --- Testing legacy compatibility ---
+pytest==7.4.4
+
+# --- Packaging legacy Windows 7 installers ---
+pyinstaller==5.13.2
+
+# Deliberately omit pywebview/pythonnet on the legacy Win7 path. The launcher
+# detects Windows 7 before importing pywebview and opens Chrome/default browser
+# mode instead, avoiding WebView2/.NET dependencies on old systems.

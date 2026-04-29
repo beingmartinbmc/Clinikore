@@ -10,8 +10,9 @@ from datetime import datetime, date, timezone
 from enum import Enum
 from typing import Optional, List
 
-from pydantic import field_validator
 from sqlmodel import SQLModel, Field, Relationship
+
+from backend.pydantic_compat import field_validator
 
 
 def utcnow() -> datetime:
