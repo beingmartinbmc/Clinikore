@@ -12,7 +12,7 @@ from typing import Optional, List
 
 from sqlmodel import SQLModel, Field, Relationship
 
-from backend.pydantic_compat import field_validator
+from backend.pydantic_compat import field_validator, model_rebuild
 
 
 def utcnow() -> datetime:
@@ -522,7 +522,7 @@ class PaymentRead(PaymentBase):
     id: int
 
 
-InvoiceRead.model_rebuild()
+model_rebuild(InvoiceRead)
 
 
 # ---------- Audit log ----------

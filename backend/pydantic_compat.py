@@ -56,3 +56,15 @@ def model_dump(model: Any, **kwargs: Any) -> dict:
     if dump is not None:
         return dump(**kwargs)
     return model.dict(**kwargs)
+
+
+def model_rebuild(model_cls: Type[Any]) -> None:
+    """Resolve forward references under Pydantic v1 or v2."""
+    rebuild = getattr(model_cls, "model_rebuild", None)
+    if rebuild is not None:
+        rebuild()
+        return
+
+    update_forward_refs = getattr(model_cls, "update_forward_refs", None)
+    if update_forward_refs is not None:
+        update_forward_refs()

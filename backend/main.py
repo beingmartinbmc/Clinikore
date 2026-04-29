@@ -95,7 +95,7 @@ from backend.undo import buffer as undo_buffer
 
 
 BACKUP_DIR = APP_DIR / "backups"
-APP_VERSION = "0.3.3"
+APP_VERSION = "0.3.4"
 _scheduler: Optional[backup_svc.BackupScheduler] = None
 
 log = logging.getLogger("clinikore")
