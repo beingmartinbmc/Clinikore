@@ -39,7 +39,7 @@ def test_default_log_dir_darwin(monkeypatch):
     with patch.object(logging_setup, "sys") as fake_sys:
         fake_sys.platform = "darwin"
         result = logging_setup.default_log_dir()
-    assert "Library/Logs/Clinikore" in str(result)
+    assert "Library/Logs/Clinikore" in result.as_posix()
 
 
 def test_default_log_dir_win32_with_localappdata(monkeypatch):
@@ -77,7 +77,7 @@ def test_default_log_dir_linux_without_xdg(monkeypatch):
     with patch.object(logging_setup, "sys") as fake_sys:
         fake_sys.platform = "linux"
         result = logging_setup.default_log_dir()
-    assert ".local/state/clinikore/logs" in str(result)
+    assert ".local/state/clinikore/logs" in result.as_posix()
 
 
 def test_configure_logging_is_idempotent():

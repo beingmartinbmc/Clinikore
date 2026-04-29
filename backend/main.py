@@ -95,7 +95,7 @@ from backend.undo import buffer as undo_buffer
 
 
 BACKUP_DIR = APP_DIR / "backups"
-APP_VERSION = "0.3.4"
+APP_VERSION = "0.3.5"
 _scheduler: Optional[backup_svc.BackupScheduler] = None
 
 log = logging.getLogger("clinikore")
@@ -1497,6 +1497,13 @@ def _classify_mime(mime: str) -> AttachmentKind:
     return AttachmentKind.other
 
 
+def _unlink_if_exists(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def _attachment_read(a: ConsultationAttachment) -> ConsultationAttachmentRead:
     return ConsultationAttachmentRead(
         id=a.id, note_id=a.note_id, patient_id=a.patient_id,
@@ -1567,7 +1574,7 @@ def upload_attachment(
                 size += len(chunk)
                 if size > _MAX_ATTACHMENT_BYTES:
                     out.close()
-                    target_path.unlink(missing_ok=True)
+                    _unlink_if_exists(target_path)
                     raise HTTPException(
                         413,
                         f"File too large (>{_MAX_ATTACHMENT_BYTES // (1024*1024)} MB).",
@@ -1576,7 +1583,7 @@ def upload_attachment(
     except HTTPException:
         raise
     except Exception:
-        target_path.unlink(missing_ok=True)
+        _unlink_if_exists(target_path)
         raise
 
     # Relative path so backups / home-dir moves stay portable.
@@ -1642,7 +1649,7 @@ def delete_attachment(aid: int, s: Session = Depends(get_session)):
     # Best-effort remove from disk. Soft-delete is the source of truth for
     # undo / audit, so if the file is already gone we still 204.
     try:
-        (APP_DIR / a.storage_path).unlink(missing_ok=True)
+        _unlink_if_exists(APP_DIR / a.storage_path)
     except Exception:
         log.warning("Could not unlink attachment file %s", a.storage_path)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

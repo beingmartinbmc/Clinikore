@@ -294,7 +294,8 @@ def test_invoice_note_link_404_on_unknown_invoice(client):
 def test_invoice_pdf_overpaid_and_with_discount(client, settings, patient):
     """Exercise the two colour branches of the balance row (overpaid,
     fully paid) plus the discount line, which the main suite skips."""
-    s = Settings(**{k: v for k, v in settings.items() if k in Settings.model_fields})
+    fields = getattr(Settings, "model_fields", None) or Settings.__fields__
+    s = Settings(**{k: v for k, v in settings.items() if k in fields})
     pat = Patient(id=1, name=patient["name"])
     items = [
         InvoiceItem(description="Consult", quantity=1, unit_price=500, invoice_id=1),
@@ -316,7 +317,8 @@ def test_clinic_header_legacy_wrapper(settings):
     """`_clinic_header` is a tiny shim around :class:`ClinicHeader` that
     older callers still use. Cover both the populated path and the
     settings-less fallback (which uses the hardcoded clinic defaults)."""
-    s = Settings(**{k: v for k, v in settings.items() if k in Settings.model_fields})
+    fields = getattr(Settings, "model_fields", None) or Settings.__fields__
+    s = Settings(**{k: v for k, v in settings.items() if k in fields})
     name, addr, phone, doctor = services._clinic_header(s)
     assert name == "Kapoor Family Clinic"
     assert "Park Street" in addr
