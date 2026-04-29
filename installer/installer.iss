@@ -16,7 +16,7 @@
 ; AppVersion can be overridden from the command line with
 ; /DAppVersion=x.y.z (used by CI so the tag drives the installer version).
 #ifndef AppVersion
-  #define AppVersion "0.3.2"
+  #define AppVersion "0.3.3"
 #endif
 #ifndef AppArch
   #define AppArch "x64"
